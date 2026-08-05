@@ -134,7 +134,7 @@ function Landing() {
       <main>
         <section className="aurora relative overflow-hidden">
           <div className="mx-auto max-w-6xl px-5 pt-16 pb-20 text-center sm:pt-24">
-            <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs font-medium">
+            <Badge variant="secondary" className="gap-1.5 rounded-full px-3 py-1 text-xs font-medium">
               <Sparkle /> One click. No background. Perfect.
             </Badge>
             <h1 className="mx-auto mt-6 max-w-3xl text-4xl leading-[1.05] font-extrabold tracking-tight sm:text-6xl">

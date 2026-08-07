@@ -1,4 +1,4 @@
-# AI Cutout Studio
+# Sn_apKut-AI
 
 You are a Senior Full-Stack Engineer, Product Architect, and UI/UX Designer. Your task is to design and generate a complete, production-ready SaaS web application called “Sn_apKut AI”, an AI-powered background removal platform.
 

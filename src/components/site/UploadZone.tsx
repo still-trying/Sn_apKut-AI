@@ -14,7 +14,7 @@ export function UploadZone() {
   const [dragging, setDragging] = useState(false);
   const [state, setState] = useState<State>("idle");
   const [progress, setProgress] = useState(0);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ url: string; file: File } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleFile = useCallback((file: File) => {
@@ -29,7 +29,10 @@ export function UploadZone() {
       setError("File is larger than 10 MB.");
       return;
     }
-    setPreview(URL.createObjectURL(file));
+    setPreview((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return { url: URL.createObjectURL(file), file };
+    });
     setState("processing");
     setProgress(8);
     const timer = window.setInterval(() => {
@@ -69,7 +72,7 @@ export function UploadZone() {
   useEffect(() => {
     const handlePaste = (event: ClipboardEvent) => {
       const image = Array.from(event.clipboardData?.items ?? []).find((item) =>
-        item.type.startsWith("image/"),
+        ALLOWED.includes(item.type),
       );
       const file = image?.getAsFile();
       if (file) {
@@ -82,7 +85,7 @@ export function UploadZone() {
   }, [handleFile]);
 
   const clearPreview = () => {
-    if (preview) URL.revokeObjectURL(preview);
+    if (preview) URL.revokeObjectURL(preview.url);
     setPreview(null);
     setProgress(0);
     setError(null);
@@ -102,7 +105,7 @@ export function UploadZone() {
               </Button>
             </div>
             <div className="checkerboard flex min-h-72 items-center justify-center p-5 sm:min-h-96">
-              <img src={preview} alt="Original image" className="max-h-[32rem] max-w-full object-contain" />
+              <img src={preview.url} alt="Original image" className="max-h-[32rem] max-w-full object-contain" />
             </div>
           </section>
           <section className="min-w-0">
@@ -133,7 +136,7 @@ export function UploadZone() {
           onDrop={(e) => {
             e.preventDefault();
             setDragging(false);
-            const file = e.dataTransfer.files?.[0];
+            const file = Array.from(e.dataTransfer.files ?? []).find((candidate) => ALLOWED.includes(candidate.type));
             if (file) handleFile(file);
           }}
           className={cn(
@@ -186,7 +189,7 @@ export function UploadZone() {
 
       {state === "error" && error && (
         <p role="alert" className="mt-4 text-sm text-destructive">
-          {error}
+        {error}
         </p>
       )}
 

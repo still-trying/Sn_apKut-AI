@@ -44,6 +44,28 @@ export function UploadZone() {
     }, 220);
   }, []);
 
+  const pasteFromClipboard = async () => {
+    try {
+      if (!navigator.clipboard?.read) {
+        throw new Error("Clipboard image access is unavailable in this browser.");
+      }
+      const clipboardItems = await navigator.clipboard.read();
+      for (const item of clipboardItems) {
+        const imageType = item.types.find((type) => ALLOWED.includes(type));
+        if (!imageType) continue;
+        const blob = await item.getType(imageType);
+        const extension = imageType.split("/")[1] ?? "png";
+        handleFile(new File([blob], `pasted-image.${extension}`, { type: imageType }));
+        return;
+      }
+      setState("error");
+      setError("No image found in your clipboard. Copy an image first, then try again.");
+    } catch {
+      setState("error");
+      setError("Clipboard access was blocked. Use Ctrl+V or ⌘V to paste an image instead.");
+    }
+  };
+
   useEffect(() => {
     const handlePaste = (event: ClipboardEvent) => {
       const image = Array.from(event.clipboardData?.items ?? []).find((item) =>
@@ -132,7 +154,7 @@ export function UploadZone() {
             <Button variant="secondary" size="sm" onClick={() => inputRef.current?.click()}>
               <ImageIcon /> Browse files
             </Button>
-            <Button variant="outline" size="sm" onClick={() => window.focus()}>
+            <Button variant="outline" size="sm" onClick={pasteFromClipboard}>
               <ClipboardPaste /> Paste image
             </Button>
           </div>

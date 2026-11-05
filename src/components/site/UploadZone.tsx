@@ -14,7 +14,7 @@ export function UploadZone() {
   const [dragging, setDragging] = useState(false);
   const [state, setState] = useState<State>("idle");
   const [progress, setProgress] = useState(0);
-  const [preview, setPreview] = useState<{ url: string; file: File } | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleFile = useCallback((file: File) => {
@@ -30,8 +30,8 @@ export function UploadZone() {
       return;
     }
     setPreview((current) => {
-      if (current) URL.revokeObjectURL(current.url);
-      return { url: URL.createObjectURL(file), file };
+      if (current) URL.revokeObjectURL(current);
+      return URL.createObjectURL(file);
     });
     setState("processing");
     setProgress(8);
@@ -105,7 +105,7 @@ export function UploadZone() {
               </Button>
             </div>
             <div className="checkerboard flex min-h-72 items-center justify-center p-5 sm:min-h-96">
-              <img src={preview.url} alt="Original image" className="max-h-[32rem] max-w-full object-contain" />
+              <img src={preview} alt="Original image" className="max-h-[32rem] max-w-full object-contain" />
             </div>
           </section>
           <section className="min-w-0">

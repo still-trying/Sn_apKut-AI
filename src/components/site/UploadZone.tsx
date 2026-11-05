@@ -85,7 +85,7 @@ export function UploadZone() {
   }, [handleFile]);
 
   const clearPreview = () => {
-    if (preview) URL.revokeObjectURL(preview.url);
+    if (preview) URL.revokeObjectURL(preview);
     setPreview(null);
     setProgress(0);
     setError(null);

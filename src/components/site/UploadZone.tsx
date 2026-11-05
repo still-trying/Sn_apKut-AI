@@ -113,11 +113,13 @@ export function UploadZone() {
               </Button>
             </div>
             <div className="checkerboard flex min-h-72 items-center justify-center p-5 sm:min-h-96">
-              <img
-                src={preview}
-                alt="Background removal preview"
-                className={cn("max-h-[32rem] max-w-full object-contain", state === "processing" && "opacity-50 blur-sm")}
-              />
+              <div className="flex max-w-xs flex-col items-center gap-2 text-center">
+                <Sparkles className="size-6 text-primary" />
+                <p className="font-medium">Transparent result</p>
+                <p className="text-sm text-muted-foreground">
+                  Background removal isn’t connected yet.
+                </p>
+              </div>
             </div>
           </section>
         </div>
@@ -191,7 +193,7 @@ export function UploadZone() {
       {state === "done" && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            Preview ready — connect processing to export the transparent PNG.
+            Your image is ready to process when background removal is connected.
           </p>
           <Button className="bg-gradient-cta glow border-0 font-semibold" disabled>
             <Download /> Download PNG

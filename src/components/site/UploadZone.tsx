@@ -1,31 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Upload, ImageIcon, Download, Sparkles, AlertCircle, ClipboardPaste, X } from "lucide-react";
+import { Upload, ImageIcon, Download, Sparkles, AlertCircle, ClipboardPaste, X, LoaderCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED = ["image/jpeg", "image/png", "image/webp"];
+const REMOVE_BACKGROUND_WEBHOOK = "http://localhost:5678/webhook/remove%20bkgrnd";
 
-type State = "idle" | "processing" | "done" | "error";
+type State = "idle" | "ready" | "processing" | "done" | "error";
 
 export function UploadZone() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [state, setState] = useState<State>("idle");
-  const [progress, setProgress] = useState(0);
   const [preview, setPreview] = useState<string | null>(null);
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
+  const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   const handleFile = useCallback((file: File) => {
     setError(null);
     if (!ALLOWED.includes(file.type)) {
-      setState("error");
       setError("Unsupported format. Use JPG, PNG or WEBP.");
       return;
     }
     if (file.size > MAX_BYTES) {
-      setState("error");
       setError("File is larger than 10 MB.");
       return;
     }
@@ -33,19 +33,72 @@ export function UploadZone() {
       if (current) URL.revokeObjectURL(current);
       return URL.createObjectURL(file);
     });
-    setState("processing");
-    setProgress(8);
-    const timer = window.setInterval(() => {
-      setProgress((p) => {
-        if (p >= 100) {
-          window.clearInterval(timer);
-          setState("done");
-          return 100;
-        }
-        return p + 12;
-      });
-    }, 220);
+    setSourceFile(file);
+    setResultUrl(null);
+    setState("ready");
   }, []);
+
+  const removeBackground = async () => {
+    if (!sourceFile || state === "processing") return;
+
+    setError(null);
+    setResultUrl(null);
+    setState("processing");
+
+    try {
+      const body = new FormData();
+      body.append("file", sourceFile, sourceFile.name);
+      const response = await fetch(REMOVE_BACKGROUND_WEBHOOK, {
+        method: "POST",
+        body,
+      });
+
+      if (!response.ok) {
+        throw new Error(`The processing service returned ${response.status}.`);
+      }
+
+      const data: unknown = await response.json();
+      if (!data || typeof data !== "object" || !("url" in data) || typeof data.url !== "string") {
+        throw new Error("The processing service did not return an image URL.");
+      }
+
+      const outputUrl = new URL(data.url);
+      if (outputUrl.protocol !== "http:" && outputUrl.protocol !== "https:") {
+        throw new Error("The processing service returned an unsupported image URL.");
+      }
+      if (outputUrl.protocol === "http:") outputUrl.protocol = "https:";
+
+      setResultUrl(outputUrl.toString());
+      setState("done");
+    } catch (requestError) {
+      setState("ready");
+      setError(
+        requestError instanceof Error
+          ? `Background removal failed. ${requestError.message}`
+          : "Background removal failed. Check that the local processing service is available.",
+      );
+    }
+  };
+
+  const downloadResult = async () => {
+    if (!resultUrl) return;
+    setDownloading(true);
+    setError(null);
+    try {
+      const response = await fetch(resultUrl);
+      if (!response.ok) throw new Error(`Download returned ${response.status}.`);
+      const downloadUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = "background-removed.png";
+      link.click();
+      URL.revokeObjectURL(downloadUrl);
+    } catch {
+      setError("Could not download the result. Open the image and save it from your browser.");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const pasteFromClipboard = async () => {
     try {
@@ -87,7 +140,8 @@ export function UploadZone() {
   const clearPreview = () => {
     if (preview) URL.revokeObjectURL(preview);
     setPreview(null);
-    setProgress(0);
+    setSourceFile(null);
+    setResultUrl(null);
     setError(null);
     setState("idle");
     if (inputRef.current) inputRef.current.value = "";
@@ -95,7 +149,7 @@ export function UploadZone() {
 
   return (
     <div className="mx-auto w-full max-w-5xl">
-      {preview && state !== "error" ? (
+      {preview && sourceFile ? (
         <div className="grid overflow-hidden rounded-xl border border-border bg-card md:grid-cols-2">
           <section className="min-w-0 border-b border-border md:border-r md:border-b-0">
             <div className="flex h-12 items-center justify-between border-b border-border px-4">
@@ -116,15 +170,39 @@ export function UploadZone() {
               </Button>
             </div>
             <div className="checkerboard flex min-h-72 items-center justify-center p-5 sm:min-h-96">
-              <div className="flex max-w-xs flex-col items-center gap-2 text-center">
-                <Sparkles className="size-6 text-primary" />
-                <p className="font-medium">Transparent result</p>
-                <p className="text-sm text-muted-foreground">
-                  Background removal isn’t connected yet.
-                </p>
-              </div>
+              {resultUrl ? (
+                <img src={resultUrl} alt="Background removed" className="max-h-[32rem] max-w-full object-contain" />
+              ) : (
+                <div className="flex max-w-xs flex-col items-center gap-2 text-center">
+                  {state === "processing" ? (
+                    <LoaderCircle className="size-6 animate-spin text-primary" />
+                  ) : (
+                    <Sparkles className="size-6 text-primary" />
+                  )}
+                  <p className="font-medium">{state === "processing" ? "Removing background…" : "Your result will appear here"}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {state === "processing" ? "Processing your image." : "Ready to remove the background."}
+                  </p>
+                </div>
+              )}
             </div>
           </section>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border p-4 md:col-span-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {state !== "done" && (
+                <Button onClick={removeBackground} disabled={state === "processing"}>
+                  {state === "processing" ? <LoaderCircle className="animate-spin" /> : <Sparkles />}
+                  {state === "processing" ? "Removing background…" : "Remove background"}
+                </Button>
+              )}
+              {state === "done" && (
+                <Button onClick={removeBackground} variant="secondary">
+                  <Sparkles /> Remove again
+                </Button>
+              )}
+            </div>
+            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+          </div>
         </div>
       ) : (
         <div
@@ -178,30 +256,16 @@ export function UploadZone() {
         </div>
       )}
 
-      {state === "processing" && (
-        <div className="mt-4">
-          <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
-            <Sparkles className="size-4 text-primary" /> Cutting out the subject…
-          </div>
-          <Progress value={progress} />
-        </div>
-      )}
-
-      {state === "error" && error && (
-        <p role="alert" className="mt-4 text-sm text-destructive">
-        {error}
-        </p>
-      )}
-
       {state === "done" && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            Your image is ready to process when background removal is connected.
-          </p>
-          <Button className="bg-gradient-cta glow border-0 font-semibold" disabled>
-            <Download /> Download PNG
+          <p className="text-sm text-muted-foreground">Background removed successfully.</p>
+          <Button className="bg-gradient-cta glow border-0 font-semibold" onClick={downloadResult} disabled={downloading}>
+            <Download /> {downloading ? "Preparing download…" : "Download PNG"}
           </Button>
         </div>
+      )}
+      {error && !sourceFile && (
+        <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>
       )}
     </div>
   );

@@ -7,7 +7,7 @@ const MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED = ["image/jpeg", "image/png", "image/webp"];
 const REMOVE_BACKGROUND_WEBHOOK = "http://localhost:5678/webhook/remove%20bkgrnd";
 
-type State = "idle" | "ready" | "processing" | "done";
+type State = "idle" | "ready" | "processing" | "done" | "error";
 
 export function UploadZone() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -196,7 +196,7 @@ export function UploadZone() {
                 </Button>
               )}
               {state === "done" && (
-                <Button onClick={removeBackground} disabled={state === "processing"} variant="secondary">
+                <Button onClick={removeBackground} variant="secondary">
                   <Sparkles /> Remove again
                 </Button>
               )}

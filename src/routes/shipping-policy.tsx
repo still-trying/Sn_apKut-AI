@@ -122,3 +122,4 @@ function ShippingPolicyPage() {
     </div>
   );
 }
+

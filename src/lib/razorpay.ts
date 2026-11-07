@@ -76,7 +76,7 @@ export async function openRazorpayCheckout({
 
   const keyId =
     (import.meta.env["VITE_RAZORPAY_KEY_ID"] as string | undefined) ||
-    "rzp_test_51aBCdEFgHIjKL";
+    "rzp_test_TxLqhOaun8Cecx";
 
   const options = {
     key: keyId,

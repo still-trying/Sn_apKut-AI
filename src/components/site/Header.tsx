@@ -36,7 +36,13 @@ export function Header() {
           <Button variant="ghost" size="sm" className="hidden sm:inline-flex">
             Sign in
           </Button>
-          <Button size="sm" className="bg-gradient-cta glow border-0 font-semibold">
+          <Button
+            size="sm"
+            className="bg-gradient-cta glow border-0 font-semibold"
+            onClick={() => {
+              document.getElementById("upload-zone")?.scrollIntoView({ behavior: "smooth" });
+            }}
+          >
             Remove a background
           </Button>
         </div>

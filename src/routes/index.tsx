@@ -145,18 +145,24 @@ function Landing() {
               transparent PNGs — no editor, no masking, no waiting.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Button size="lg" className="bg-gradient-cta glow border-0 font-semibold">
+              <Button
+                size="lg"
+                className="bg-gradient-cta glow border-0 font-semibold"
+                onClick={() => {
+                  document.getElementById("upload-zone")?.scrollIntoView({ behavior: "smooth" });
+                }}
+              >
                 Remove a background free
               </Button>
-              <Button size="lg" variant="outline">
-                View API docs
+              <Button size="lg" variant="outline" asChild>
+                <a href="#how">How it works</a>
               </Button>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
               5 free images daily · no credit card · auto-deleted in 24h
             </p>
 
-            <div className="mt-14">
+            <div className="mt-14" id="upload-zone">
               <UploadZone />
             </div>
           </div>

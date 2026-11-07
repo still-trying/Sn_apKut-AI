@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/accordion";
 import { Zap, ShieldCheck, Layers, Code2, Timer, Wand2, Check } from "lucide-react";
 import { openRazorpayCheckout } from "@/lib/razorpay";
+import { addCredits, upgradeToPro } from "@/lib/credits-storage";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -260,6 +262,15 @@ function Landing() {
                       planName: p.name,
                       amountInRupees: p.amount,
                       description: p.desc,
+                      onSuccess: () => {
+                        if (p.name === "Pro") {
+                          upgradeToPro();
+                          toast.success("Account upgraded to Pro! Unlimited background removals unlocked.");
+                        } else if (p.name === "Credit packs") {
+                          addCredits(250);
+                          toast.success("250 Credits successfully added to your account!");
+                        }
+                      },
                     });
                   }}
                 >

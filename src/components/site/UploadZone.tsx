@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,6 +19,9 @@ import {
 import { cn } from "@/lib/utils";
 import { useCutoutHistory } from "@/hooks/use-cutout-history";
 import { HistoryGallery } from "@/components/site/HistoryGallery";
+import { useUserCredits } from "@/hooks/use-user-credits";
+import { canProcessImage, deductCreditOnSuccess } from "@/lib/credits-storage";
+import { openRazorpayCheckout } from "@/lib/razorpay";
 import { toast } from "sonner";
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -44,6 +48,7 @@ export function UploadZone() {
   const [downloading, setDownloading] = useState(false);
 
   const { history, addItem, removeItem, clear } = useCutoutHistory();
+  const { plan, creditsRemaining, makePro } = useUserCredits();
 
   // Listen for tab navigation events triggered from Header or other buttons
   useEffect(() => {
@@ -80,6 +85,31 @@ export function UploadZone() {
 
   const removeBackground = async () => {
     if (!sourceFile || state === "processing") return;
+
+    // Check credits before processing
+    if (!canProcessImage()) {
+      setError(
+        "You have used all your credits for today. Upgrade to Pro for unlimited background removals or buy credit packs.",
+      );
+      toast.error("Credit balance exhausted", {
+        description: "You have 0 credits remaining today. Upgrade to Pro to continue.",
+        action: {
+          label: "Upgrade to Pro",
+          onClick: () => {
+            openRazorpayCheckout({
+              planName: "Pro",
+              amountInRupees: 799,
+              description: "Unlimited high-resolution cutouts",
+              onSuccess: () => {
+                makePro();
+                toast.success("Account upgraded to Pro! Unlimited cutouts enabled.");
+              },
+            });
+          },
+        },
+      });
+      return;
+    }
 
     setError(null);
     setResultUrl(null);
@@ -179,6 +209,9 @@ export function UploadZone() {
       setResultUrl(finalUrl);
       setState("done");
 
+      // Deduct credit upon successful background removal
+      const creditResult = deductCreditOnSuccess();
+
       // Save every response to Local Storage so user can access it even after refresh
       addItem({
         name: sourceFile.name || "image.png",
@@ -190,7 +223,11 @@ export function UploadZone() {
             : undefined,
       });
 
-      toast.success("Background removed & saved to your history!");
+      if (creditResult.plan === "pro") {
+        toast.success("Background removed! (Pro Unlimited)");
+      } else {
+        toast.success(`Background removed! 1 credit used (${creditResult.remaining} remaining today).`);
+      }
     } catch (requestError) {
       setState("ready");
       if (requestError instanceof TypeError && requestError.message.toLowerCase().includes("fetch")) {
@@ -313,17 +350,29 @@ export function UploadZone() {
           </TabsList>
         </Tabs>
 
-        {activeTab === "workspace" && history.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="text-xs font-medium py-1 px-2.5 bg-card/60">
+            {plan === "pro" ? (
+              <span className="text-primary font-semibold flex items-center gap-1">
+                <Sparkles className="size-3" /> Pro Member (Unlimited)
+              </span>
+            ) : (
+              <span className="flex items-center gap-1">
+                <Sparkles className="size-3 text-primary" />
+                <span className="font-semibold text-foreground">{creditsRemaining}</span> / 5 daily credits
+              </span>
+            )}
+          </Badge>
+
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setActiveTab("history")}
-            className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            asChild
+            className="h-8 gap-1 text-xs text-muted-foreground hover:text-foreground"
           >
-            <Clock className="size-3.5" /> View {history.length} saved{" "}
-            {history.length === 1 ? "cutout" : "cutouts"}
+            <Link to="/dashboard">Dashboard ➔</Link>
           </Button>
-        )}
+        </div>
       </div>
 
       {activeTab === "history" ? (

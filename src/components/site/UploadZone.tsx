@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Upload,
   ImageIcon,
@@ -11,8 +13,12 @@ import {
   LoaderCircle,
   RotateCcw,
   CheckCircle2,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCutoutHistory } from "@/hooks/use-cutout-history";
+import { HistoryGallery } from "@/components/site/HistoryGallery";
+import { toast } from "sonner";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED = ["image/jpeg", "image/png", "image/webp"];
@@ -28,6 +34,7 @@ function formatBytes(bytes: number): string {
 
 export function UploadZone() {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [activeTab, setActiveTab] = useState<"workspace" | "history">("workspace");
   const [dragging, setDragging] = useState(false);
   const [state, setState] = useState<State>("idle");
   const [preview, setPreview] = useState<string | null>(null);
@@ -35,6 +42,20 @@ export function UploadZone() {
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+
+  const { history, addItem, removeItem, clear } = useCutoutHistory();
+
+  // Listen for tab navigation events triggered from Header or other buttons
+  useEffect(() => {
+    const handleSwitchTab = (event: Event) => {
+      const customEvent = event as CustomEvent<string>;
+      if (customEvent.detail === "history" || customEvent.detail === "workspace") {
+        setActiveTab(customEvent.detail as "workspace" | "history");
+      }
+    };
+    window.addEventListener("snapkut_open_tab", handleSwitchTab);
+    return () => window.removeEventListener("snapkut_open_tab", handleSwitchTab);
+  }, []);
 
   const handleFile = useCallback((file: File) => {
     setError(null);
@@ -54,6 +75,7 @@ export function UploadZone() {
     setSourceFile(file);
     setResultUrl(null);
     setState("ready");
+    setActiveTab("workspace");
   }, []);
 
   const removeBackground = async () => {
@@ -153,8 +175,22 @@ export function UploadZone() {
         outputUrl.protocol = "https:";
       }
 
-      setResultUrl(outputUrl.toString());
+      const finalUrl = outputUrl.toString();
+      setResultUrl(finalUrl);
       setState("done");
+
+      // Save every response to Local Storage so user can access it even after refresh
+      addItem({
+        name: sourceFile.name || "image.png",
+        size: sourceFile.size,
+        resultUrl: finalUrl,
+        rawResponse:
+          typeof data === "object" && data !== null
+            ? (data as Record<string, unknown>)
+            : undefined,
+      });
+
+      toast.success("Background removed & saved to your history!");
     } catch (requestError) {
       setState("ready");
       if (requestError instanceof TypeError && requestError.message.toLowerCase().includes("fetch")) {
@@ -188,6 +224,7 @@ export function UploadZone() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(downloadUrl);
+      toast.success("Download started!");
     } catch {
       // Fallback: direct download link if CORS prevents fetching the blob
       const link = document.createElement("a");
@@ -250,18 +287,75 @@ export function UploadZone() {
 
   return (
     <div className="mx-auto w-full max-w-5xl">
-      {preview && sourceFile ? (
+      {/* Top Navigation Tabs: Remove Background Studio vs Cutout History */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <Tabs
+          value={activeTab}
+          onValueChange={(val) => setActiveTab(val as "workspace" | "history")}
+        >
+          <TabsList className="bg-card/70 border border-border p-1 shadow-sm">
+            <TabsTrigger value="workspace" className="gap-2 text-sm font-semibold">
+              <Sparkles className="size-4 text-primary" />
+              Remove Background
+            </TabsTrigger>
+            <TabsTrigger value="history" className="gap-2 text-sm font-semibold">
+              <Clock className="size-4 text-primary" />
+              History
+              {history.length > 0 && (
+                <Badge
+                  variant="secondary"
+                  className="ml-1 px-1.5 py-0 text-[11px] font-bold"
+                >
+                  {history.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {activeTab === "workspace" && history.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setActiveTab("history")}
+            className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <Clock className="size-3.5" /> View {history.length} saved{" "}
+            {history.length === 1 ? "cutout" : "cutouts"}
+          </Button>
+        )}
+      </div>
+
+      {activeTab === "history" ? (
+        /* History Gallery: Shows all saved background-removed images from Local Storage */
+        <HistoryGallery
+          items={history}
+          onDeleteItem={removeItem}
+          onClearAll={clear}
+          onSelectForPreview={(item) => {
+            setResultUrl(item.resultUrl);
+            setPreview(item.resultUrl);
+            setSourceFile(new File([], item.name, { type: "image/png" }));
+            setState("done");
+            setActiveTab("workspace");
+            toast.info(`Opened "${item.name}" in preview.`);
+          }}
+          onGoToUpload={() => setActiveTab("workspace")}
+        />
+      ) : preview && sourceFile ? (
+        /* Side-by-Side Comparison Grid */
         <div className="overflow-hidden rounded-xl border border-border bg-card shadow-lg">
-          {/* Main Side-by-Side Comparison Grid */}
           <div className="grid md:grid-cols-2">
             {/* Left Column: Original Uploaded Image */}
             <section className="min-w-0 border-b border-border md:border-r md:border-b-0">
               <div className="flex h-12 items-center justify-between border-b border-border px-4 bg-muted/20">
                 <div className="flex items-center gap-2 overflow-hidden text-left">
                   <span className="text-sm font-semibold">Original</span>
-                  <span className="truncate text-xs text-muted-foreground" title={sourceFile.name}>
-                    ({formatBytes(sourceFile.size)})
-                  </span>
+                  {sourceFile.size > 0 && (
+                    <span className="truncate text-xs text-muted-foreground" title={sourceFile.name}>
+                      ({formatBytes(sourceFile.size)})
+                    </span>
+                  )}
                 </div>
                 <Button
                   variant="ghost"

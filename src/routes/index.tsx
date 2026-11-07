@@ -11,6 +11,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Zap, ShieldCheck, Layers, Code2, Timer, Wand2, Check } from "lucide-react";
+import { openRazorpayCheckout } from "@/lib/razorpay";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -68,6 +69,7 @@ const features = [
 const plans = [
   {
     name: "Free",
+    amount: 0,
     price: "₹0",
     period: "forever",
     desc: "For trying it out.",
@@ -77,6 +79,7 @@ const plans = [
   },
   {
     name: "Pro",
+    amount: 799,
     price: "₹799",
     period: "/month",
     desc: "For creators and stores.",
@@ -92,6 +95,7 @@ const plans = [
   },
   {
     name: "Credit packs",
+    amount: 299,
     price: "₹299",
     period: "/ 250 credits",
     desc: "Pay only when you need it.",
@@ -247,10 +251,17 @@ function Landing() {
                 <Button
                   className={
                     p.highlight
-                      ? "bg-gradient-cta glow mt-7 w-full border-0 font-semibold"
-                      : "mt-7 w-full"
+                      ? "bg-gradient-cta glow mt-7 w-full border-0 font-semibold cursor-pointer"
+                      : "mt-7 w-full font-semibold cursor-pointer"
                   }
                   variant={p.highlight ? "default" : "secondary"}
+                  onClick={() => {
+                    openRazorpayCheckout({
+                      planName: p.name,
+                      amountInRupees: p.amount,
+                      description: p.desc,
+                    });
+                  }}
                 >
                   {p.cta}
                 </Button>

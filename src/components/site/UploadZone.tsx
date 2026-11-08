@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,6 +15,7 @@ import {
   RotateCcw,
   CheckCircle2,
   Clock,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCutoutHistory } from "@/hooks/use-cutout-history";
@@ -22,6 +23,8 @@ import { HistoryGallery } from "@/components/site/HistoryGallery";
 import { useUserCredits } from "@/hooks/use-user-credits";
 import { canProcessImage, deductCreditOnSuccess } from "@/lib/credits-storage";
 import { openRazorpayCheckout } from "@/lib/razorpay";
+import { useAuth } from "@/contexts/auth-context";
+import { deductUserCredit, saveCutoutRecord, upgradeProfileToPro } from "@/lib/supabase";
 import { toast } from "sonner";
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -37,6 +40,7 @@ function formatBytes(bytes: number): string {
 }
 
 export function UploadZone() {
+  const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<"workspace" | "history">("workspace");
   const [dragging, setDragging] = useState(false);
@@ -48,7 +52,11 @@ export function UploadZone() {
   const [downloading, setDownloading] = useState(false);
 
   const { history, addItem, removeItem, clear } = useCutoutHistory();
-  const { plan, creditsRemaining, makePro } = useUserCredits();
+  const { plan: localPlan, creditsRemaining: localCredits, makePro } = useUserCredits();
+  const { user, profile, refreshProfile } = useAuth();
+
+  const effectivePlan = profile?.plan || localPlan;
+  const effectiveCredits = profile?.credits_remaining ?? localCredits;
 
   // Listen for tab navigation events triggered from Header or other buttons
   useEffect(() => {
@@ -86,8 +94,22 @@ export function UploadZone() {
   const removeBackground = async () => {
     if (!sourceFile || state === "processing") return;
 
+    // Check Authentication: Strictly members only
+    if (!user) {
+      toast.info("Please sign in or create an account to remove backgrounds & claim 5 daily credits.", {
+        action: {
+          label: "Sign in",
+          onClick: () => {
+            navigate({ to: "/auth", search: { mode: "signin", redirect: "/#upload-zone" } });
+          },
+        },
+      });
+      navigate({ to: "/auth", search: { mode: "signup", redirect: "/#upload-zone" } });
+      return;
+    }
+
     // Check credits before processing
-    if (!canProcessImage()) {
+    if (effectivePlan !== "pro" && effectiveCredits <= 0) {
       setError(
         "You have used all your credits for today. Upgrade to Pro for unlimited background removals or buy credit packs.",
       );
@@ -100,7 +122,11 @@ export function UploadZone() {
               planName: "Pro",
               amountInRupees: 799,
               description: "Unlimited high-resolution cutouts",
-              onSuccess: () => {
+              onSuccess: async () => {
+                if (user) {
+                  await upgradeProfileToPro(user.id);
+                  await refreshProfile();
+                }
                 makePro();
                 toast.success("Account upgraded to Pro! Unlimited cutouts enabled.");
               },
@@ -209,10 +235,37 @@ export function UploadZone() {
       setResultUrl(finalUrl);
       setState("done");
 
-      // Deduct credit upon successful background removal
-      const creditResult = deductCreditOnSuccess();
+      // Deduct credit in Supabase database & locally
+      let currentRemaining = effectiveCredits - 1;
+      let currentPlan = effectivePlan;
 
-      // Save every response to Local Storage so user can access it even after refresh
+      if (user) {
+        try {
+          const creditRes = await deductUserCredit(user.id);
+          currentRemaining = creditRes.remaining;
+          currentPlan = creditRes.plan;
+
+          // Save to Supabase cutout_history
+          await saveCutoutRecord(user.id, {
+            imageName: sourceFile.name || "image.png",
+            imageSize: sourceFile.size,
+            resultUrl: finalUrl,
+            rawResponse:
+              typeof data === "object" && data !== null
+                ? (data as Record<string, unknown>)
+                : undefined,
+          });
+
+          await refreshProfile();
+        } catch (dbErr) {
+          console.error("Database save error:", dbErr);
+        }
+      }
+
+      // Also deduct locally for instant UI update
+      deductCreditOnSuccess();
+
+      // Save to Local Storage cache
       addItem({
         name: sourceFile.name || "image.png",
         size: sourceFile.size,
@@ -223,10 +276,10 @@ export function UploadZone() {
             : undefined,
       });
 
-      if (creditResult.plan === "pro") {
+      if (currentPlan === "pro") {
         toast.success("Background removed! (Pro Unlimited)");
       } else {
-        toast.success(`Background removed! 1 credit used (${creditResult.remaining} remaining today).`);
+        toast.success(`Background removed! 1 credit used (${currentRemaining} remaining today).`);
       }
     } catch (requestError) {
       setState("ready");
@@ -352,14 +405,18 @@ export function UploadZone() {
 
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline" className="text-xs font-medium py-1 px-2.5 bg-card/60">
-            {plan === "pro" ? (
+            {!user ? (
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <Sparkles className="size-3 text-primary" /> Sign in for 5 free credits
+              </span>
+            ) : effectivePlan === "pro" ? (
               <span className="text-primary font-semibold flex items-center gap-1">
                 <Sparkles className="size-3" /> Pro Member (Unlimited)
               </span>
             ) : (
               <span className="flex items-center gap-1">
                 <Sparkles className="size-3 text-primary" />
-                <span className="font-semibold text-foreground">{creditsRemaining}</span> / 5 daily credits
+                <span className="font-semibold text-foreground">{effectiveCredits}</span> / 5 daily credits
               </span>
             )}
           </Badge>
@@ -370,7 +427,12 @@ export function UploadZone() {
             asChild
             className="h-8 gap-1 text-xs text-muted-foreground hover:text-foreground"
           >
-            <Link to="/dashboard">Dashboard ➔</Link>
+            <Link
+              to={user ? "/dashboard" : "/auth"}
+              search={user ? {} : { redirect: "/dashboard" }}
+            >
+              Dashboard ➔
+            </Link>
           </Button>
         </div>
       </div>
@@ -499,6 +561,11 @@ export function UploadZone() {
                     <>
                       <LoaderCircle className="size-4 animate-spin" />
                       Removing background…
+                    </>
+                  ) : !user ? (
+                    <>
+                      <Lock className="size-4" />
+                      Sign in to remove background
                     </>
                   ) : (
                     <>

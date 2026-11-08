@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -22,6 +22,8 @@ import {
   ExternalLink,
   ShieldCheck,
   Zap,
+  LogOut,
+  User as UserIcon,
 } from "lucide-react";
 import logo from "@/assets/snapkut-logo.png.asset.json";
 import { useUserCredits } from "@/hooks/use-user-credits";
@@ -29,6 +31,12 @@ import { useCutoutHistory } from "@/hooks/use-cutout-history";
 import { openRazorpayCheckout } from "@/lib/razorpay";
 import { UploadZone } from "@/components/site/UploadZone";
 import { HistoryGallery } from "@/components/site/HistoryGallery";
+import { useAuth } from "@/contexts/auth-context";
+import {
+  upgradeProfileToPro,
+  addCreditsToProfile,
+  savePaymentRecord,
+} from "@/lib/supabase";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/dashboard")({
@@ -80,21 +88,52 @@ const DEMO_RECENT_IMAGES = [
 ];
 
 function DashboardPage() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<DashboardTab>("dashboard");
   const [copiedKey, setCopiedKey] = useState(false);
 
-  const { plan, creditsRemaining, totalProcessed, monthProcessed, apiKey, makePro, add } =
+  const { plan: localPlan, creditsRemaining: localCredits, totalProcessed: localTotal, monthProcessed: localMonth, apiKey: localKey, makePro, add } =
     useUserCredits();
   const { history, removeItem, clear } = useCutoutHistory();
+  const { user, profile, loading: authLoading, signOut, refreshProfile } = useAuth();
+
+  // Route protection: redirect to /auth if not signed in
+  useEffect(() => {
+    if (!authLoading && !user) {
+      toast.info("Please sign in to access your dashboard.");
+      navigate({ to: "/auth", search: { redirect: "/dashboard" } });
+    }
+  }, [user, authLoading, navigate]);
+
+  const activePlan = profile?.plan || localPlan;
+  const activeCredits = profile?.credits_remaining ?? localCredits;
+  const activeTotal = profile?.total_processed ?? localTotal;
+  const activeMonth = profile?.month_processed ?? localMonth;
+  const activeApiKey = profile?.api_key || localKey;
 
   const handleUpgradeToPro = () => {
     openRazorpayCheckout({
       planName: "Pro",
       amountInRupees: 799,
       description: "Unlimited images & priority processing",
-      onSuccess: () => {
-        makePro();
-        toast.success("Account upgraded to Pro! Unlimited cutouts enabled.");
+      onSuccess: async (res) => {
+        try {
+          if (user) {
+            await upgradeProfileToPro(user.id);
+            await savePaymentRecord(user.id, {
+              razorpayPaymentId: res.razorpay_payment_id,
+              razorpayOrderId: res.razorpay_order_id,
+              razorpaySignature: res.razorpay_signature,
+              planName: "Pro",
+              amountInRupees: 799,
+            });
+            await refreshProfile();
+          }
+          makePro();
+          toast.success("Account upgraded to Pro! Unlimited cutouts enabled.");
+        } catch (err) {
+          console.error("Upgrade error:", err);
+        }
       },
     });
   };
@@ -104,23 +143,53 @@ function DashboardPage() {
       planName: "Credit packs",
       amountInRupees: 299,
       description: "250 Image Credits Bundle",
-      onSuccess: () => {
-        add(250);
-        toast.success("250 Credits added to your balance!");
+      onSuccess: async (res) => {
+        try {
+          if (user) {
+            await addCreditsToProfile(user.id, 250);
+            await savePaymentRecord(user.id, {
+              razorpayPaymentId: res.razorpay_payment_id,
+              razorpayOrderId: res.razorpay_order_id,
+              razorpaySignature: res.razorpay_signature,
+              planName: "Credit packs",
+              amountInRupees: 299,
+            });
+            await refreshProfile();
+          }
+          add(250);
+          toast.success("250 Credits added to your balance!");
+        } catch (err) {
+          console.error("Buy credits error:", err);
+        }
       },
     });
   };
 
   const handleCopyApiKey = () => {
-    navigator.clipboard.writeText(apiKey);
+    navigator.clipboard.writeText(activeApiKey);
     setCopiedKey(true);
     toast.success("API key copied to clipboard!");
     setTimeout(() => setCopiedKey(false), 2000);
   };
 
-  const displayedTotal = totalProcessed > 0 ? totalProcessed : (history.length > 0 ? history.length : 124);
-  const displayedMonth = monthProcessed > 0 ? monthProcessed : (history.length > 0 ? history.length : 45);
+  const displayedTotal = activeTotal > 0 ? activeTotal : (history.length > 0 ? history.length : 124);
+  const displayedMonth = activeMonth > 0 ? activeMonth : (history.length > 0 ? history.length : 45);
   const displayedRecent = history.length > 0 ? history.slice(0, 6) : DEMO_RECENT_IMAGES;
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
+        <div className="flex flex-col items-center gap-3">
+          <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="text-xs text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null; // Will redirect via useEffect
+  }
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -223,30 +292,51 @@ function DashboardPage() {
         </div>
 
         {/* Bottom Sidebar Plan Card */}
-        <div className="rounded-xl border border-border/80 bg-card p-3.5 shadow-sm">
-          <div className="flex items-center gap-2">
-            <div className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Sparkles className="size-4" />
+        <div className="space-y-3">
+          <div className="rounded-xl border border-border/80 bg-card p-3.5 shadow-sm">
+            <div className="flex items-center gap-2">
+              <div className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Sparkles className="size-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground">
+                  {activePlan === "pro" ? "Pro Plan" : "Free Plan"}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  {activePlan === "pro" ? "Unlimited credits" : `${activeCredits} credits left`}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-bold text-foreground">
-                {plan === "pro" ? "Pro Plan" : "Free Plan"}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                {plan === "pro" ? "Unlimited credits" : `${creditsRemaining} credits left`}
-              </p>
-            </div>
+
+            {activePlan !== "pro" && (
+              <Button
+                size="sm"
+                onClick={handleUpgradeToPro}
+                className="bg-gradient-cta glow mt-3 w-full border-0 text-xs font-semibold text-primary-foreground"
+              >
+                Upgrade to Pro
+              </Button>
+            )}
           </div>
 
-          {plan !== "pro" && (
-            <Button
-              size="sm"
-              onClick={handleUpgradeToPro}
-              className="bg-gradient-cta glow mt-3 w-full border-0 text-xs font-semibold text-primary-foreground"
+          {/* User profile & sign out footer */}
+          <div className="flex items-center justify-between px-2 py-1 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="size-6 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-[10px] shrink-0">
+                {(profile?.full_name || user?.email || "U")[0]?.toUpperCase()}
+              </div>
+              <span className="truncate text-xs text-foreground max-w-[120px]" title={user?.email}>
+                {profile?.full_name || user?.email?.split("@")[0]}
+              </span>
+            </div>
+            <button
+              onClick={() => signOut()}
+              className="text-muted-foreground hover:text-destructive transition-colors p-1"
+              title="Sign Out"
             >
-              Upgrade to Pro
-            </Button>
-          )}
+              <LogOut className="size-3.5" />
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -259,7 +349,7 @@ function DashboardPage() {
               {activeTab === "dashboard" ? "Dashboard" : activeTab}
             </h1>
             <Badge variant="outline" className="hidden sm:inline-flex text-[11px]">
-              {plan === "pro" ? "Pro Member" : "Free Tier"}
+              {activePlan === "pro" ? "Pro Member" : "Free Tier"}
             </Badge>
           </div>
 
@@ -310,7 +400,7 @@ function DashboardPage() {
                     <div className="flex size-9 items-center justify-center rounded-lg bg-primary/12 text-primary">
                       <Sparkles className="size-4" />
                     </div>
-                    {plan === "pro" && (
+                    {activePlan === "pro" && (
                       <span className="inline-flex items-center text-xs font-semibold text-primary bg-primary/10 rounded px-1.5 py-0.5">
                         Unlimited
                       </span>
@@ -318,7 +408,7 @@ function DashboardPage() {
                   </div>
                   <div className="mt-4">
                     <p className="text-3xl font-extrabold tracking-tight">
-                      {plan === "pro" ? "∞" : creditsRemaining}
+                      {activePlan === "pro" ? "∞" : activeCredits}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">Credits Remaining</p>
                   </div>
@@ -505,16 +595,16 @@ function DashboardPage() {
               <div className="glass-card p-6 flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <Badge variant="secondary" className="mb-2">Active Plan</Badge>
-                  <h3 className="text-2xl font-bold">{plan === "pro" ? "Pro Plan" : "Free Plan"}</h3>
+                  <h3 className="text-2xl font-bold">{activePlan === "pro" ? "Pro Plan" : "Free Plan"}</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {plan === "pro"
+                    {activePlan === "pro"
                       ? "Unlimited image cutouts and priority queue."
-                      : `${creditsRemaining} credits remaining today. Resets daily.`}
+                      : `${activeCredits} credits remaining today. Resets daily.`}
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {plan !== "pro" && (
+                  {activePlan !== "pro" && (
                     <Button
                       size="lg"
                       onClick={handleUpgradeToPro}
@@ -552,7 +642,7 @@ function DashboardPage() {
                   <input
                     type="password"
                     readOnly
-                    value={apiKey}
+                    value={activeApiKey}
                     className="w-full rounded-md border border-input bg-background/60 px-3 py-2 text-sm font-mono text-foreground"
                   />
                   <Button variant="outline" size="sm" onClick={handleCopyApiKey} className="gap-1.5 shrink-0">
@@ -569,7 +659,7 @@ function DashboardPage() {
                 <h3 className="text-sm font-bold">Quick cURL Example</h3>
                 <pre className="overflow-x-auto rounded-lg bg-black/60 p-4 text-xs font-mono text-green-400">
 {`curl -X POST "http://localhost:5678/webhook/remove%20bkgrnd" \\
-  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Authorization: Bearer ${activeApiKey}" \\
   -H "Content-Type: image/png" \\
   --data-binary "@photo.png"`}
                 </pre>
@@ -584,6 +674,29 @@ function DashboardPage() {
                 <p className="text-xs text-muted-foreground mt-1">
                   Manage privacy, local data storage, and compliance preferences.
                 </p>
+              </div>
+
+              {/* User Account Info */}
+              <div className="glass-card p-6 space-y-4">
+                <h3 className="text-sm font-bold">Account Details</h3>
+                <div className="grid gap-3 sm:grid-cols-2 text-xs">
+                  <div className="rounded-lg border border-border/80 bg-background/50 p-3">
+                    <span className="text-muted-foreground block text-[11px]">Email Address</span>
+                    <span className="font-semibold text-foreground text-sm mt-0.5 block truncate">{user?.email}</span>
+                  </div>
+                  <div className="rounded-lg border border-border/80 bg-background/50 p-3">
+                    <span className="text-muted-foreground block text-[11px]">Display Name</span>
+                    <span className="font-semibold text-foreground text-sm mt-0.5 block">{profile?.full_name || "—"}</span>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => signOut()}
+                  className="gap-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <LogOut className="size-3.5" /> Sign Out
+                </Button>
               </div>
 
               <div className="glass-card p-6 space-y-4">

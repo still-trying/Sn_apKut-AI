@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { UploadZone } from "@/components/site/UploadZone";
@@ -13,6 +13,12 @@ import {
 import { Zap, ShieldCheck, Layers, Code2, Timer, Wand2, Check } from "lucide-react";
 import { openRazorpayCheckout } from "@/lib/razorpay";
 import { addCredits, upgradeToPro } from "@/lib/credits-storage";
+import { useAuth } from "@/contexts/auth-context";
+import {
+  upgradeProfileToPro,
+  addCreditsToProfile,
+  savePaymentRecord,
+} from "@/lib/supabase";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
@@ -133,6 +139,9 @@ const faqs = [
 ];
 
 function Landing() {
+  const navigate = useNavigate();
+  const { user, refreshProfile } = useAuth();
+
   return (
     <div className="min-h-screen">
       <Header />
@@ -258,17 +267,53 @@ function Landing() {
                   }
                   variant={p.highlight ? "default" : "secondary"}
                   onClick={() => {
+                    // Free Tier handling
+                    if (p.name === "Free") {
+                      if (!user) {
+                        toast.info("Create a free account to activate your 5 daily credits!");
+                        navigate({ to: "/auth", search: { mode: "signup", redirect: "/#upload-zone" } });
+                      } else {
+                        toast.success("You are on the Free Plan! 5 credits are ready to use.");
+                        document.getElementById("upload-zone")?.scrollIntoView({ behavior: "smooth" });
+                      }
+                      return;
+                    }
+
+                    // Paid Tiers (Pro or Credit packs) require being signed in
+                    if (!user) {
+                      toast.info("Please sign in or create an account first to link your purchase.");
+                      navigate({ to: "/auth", search: { mode: "signin", redirect: "/#pricing" } });
+                      return;
+                    }
+
                     openRazorpayCheckout({
                       planName: p.name,
                       amountInRupees: p.amount,
                       description: p.desc,
-                      onSuccess: () => {
-                        if (p.name === "Pro") {
-                          upgradeToPro();
-                          toast.success("Account upgraded to Pro! Unlimited background removals unlocked.");
-                        } else if (p.name === "Credit packs") {
-                          addCredits(250);
-                          toast.success("250 Credits successfully added to your account!");
+                      onSuccess: async (res) => {
+                        try {
+                          if (p.name === "Pro") {
+                            await upgradeProfileToPro(user.id);
+                            upgradeToPro();
+                            toast.success("Account upgraded to Pro! Unlimited background removals unlocked.");
+                          } else if (p.name === "Credit packs") {
+                            await addCreditsToProfile(user.id, 250);
+                            addCredits(250);
+                            toast.success("250 Credits successfully added to your account!");
+                          }
+
+                          // Save transaction record to Supabase
+                          await savePaymentRecord(user.id, {
+                            razorpayPaymentId: res.razorpay_payment_id,
+                            razorpayOrderId: res.razorpay_order_id,
+                            razorpaySignature: res.razorpay_signature,
+                            planName: p.name,
+                            amountInRupees: p.amount,
+                          });
+
+                          await refreshProfile();
+                        } catch (err) {
+                          console.error("Failed to update profile after payment:", err);
                         }
                       },
                     });

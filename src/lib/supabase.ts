@@ -1,10 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl =
+  (import.meta.env["SUPABASE_URL"] as string | undefined) ||
   (import.meta.env["VITE_SUPABASE_URL"] as string | undefined) ||
   "https://ugagaidwiadaluisxexo.supabase.co";
 
 const supabaseAnonKey =
+  (import.meta.env["SUPABASE_ANON_KEY"] as string | undefined) ||
   (import.meta.env["VITE_SUPABASE_ANON_KEY"] as string | undefined) ||
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVnYWdhaWR3aWFkYWx1aXN4ZXhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQxMjA0MjYsImV4cCI6MjEwOTY5NjQyNn0.M-m_XeYEwmqJD30HxdW1PAMEhhRVMTUmWkUYAvxku8w";
 

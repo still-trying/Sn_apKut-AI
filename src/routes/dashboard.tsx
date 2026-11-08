@@ -129,7 +129,11 @@ function DashboardPage() {
         <div className="space-y-6">
           {/* Logo / Brand Header */}
           <Link to="/" className="flex items-center gap-2.5 px-2 py-1">
-            <img src={logo.url} alt="Sn_apKut AI Logo" className="size-8 rounded-lg object-contain" />
+            <img
+              src={logo.url}
+              alt="Sn_apKut AI Logo"
+              className="size-8 rounded-lg object-contain bg-white/95 p-1 shadow-sm ring-1 ring-white/10"
+            />
             <span className="text-base font-bold tracking-tight">
               Sn_apKut <span className="text-gradient">AI</span>
             </span>

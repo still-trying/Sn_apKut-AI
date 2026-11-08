@@ -8,8 +8,12 @@ export function Footer() {
       <div className="mx-auto grid max-w-6xl gap-8 px-5 py-12 sm:grid-cols-2 lg:grid-cols-4">
         {/* Brand & Mission */}
         <div>
-          <Link to="/" className="flex items-center gap-2">
-            <img src={logo.url} alt="Sn_apKut AI logo" className="h-8 w-8 rounded-lg object-contain" />
+          <Link to="/" className="flex items-center gap-2.5">
+            <img
+              src={logo.url}
+              alt="Sn_apKut AI logo"
+              className="h-8 w-8 rounded-lg object-contain bg-white/95 p-1 shadow-sm ring-1 ring-white/10"
+            />
             <span className="font-bold tracking-tight text-base">
               Sn_apKut <span className="text-gradient">AI</span>
             </span>

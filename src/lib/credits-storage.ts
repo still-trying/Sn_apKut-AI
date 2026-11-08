@@ -109,3 +109,4 @@ export function upgradeToPro(): UserCreditsData {
   saveUserCredits(current);
   return current;
 }
+

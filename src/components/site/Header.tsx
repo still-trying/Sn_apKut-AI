@@ -30,8 +30,12 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/70 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
-        <Link to="/" className="flex items-center gap-2">
-          <img src={logo.url} alt="Sn_apKut AI logo" className="h-9 w-9 rounded-lg object-contain" />
+        <Link to="/" className="flex items-center gap-2.5">
+          <img
+            src={logo.url}
+            alt="Sn_apKut AI logo"
+            className="h-9 w-9 rounded-lg object-contain bg-white/95 p-1 shadow-sm ring-1 ring-white/10"
+          />
           <span className="text-base font-bold tracking-tight">
             Sn_apKut <span className="text-gradient">AI</span>
           </span>

@@ -84,7 +84,10 @@ export async function openRazorpayCheckout({
     currency: "INR",
     name: "Sn_apKut AI",
     description: `${planName} — ${description}`,
-    image: logo.url,
+    image:
+      typeof window !== "undefined"
+        ? `${window.location.origin}${logo.url.startsWith("/") ? "" : "/"}${logo.url}`
+        : logo.url,
     theme: {
       color: "#6366f1",
       backdrop_color: "rgba(10, 10, 26, 0.85)",

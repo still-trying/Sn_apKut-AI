@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { User, Session } from "@supabase/supabase-js";
 import { supabase, fetchUserProfile, ensureUserProfile, type UserProfile } from "@/lib/supabase";
+import { registerUserServerFn } from "@/lib/server-auth";
 import { toast } from "sonner";
 
 interface AuthContextType {
@@ -94,6 +95,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUpWithPassword = async (email: string, password: string, fullName?: string) => {
     try {
+      // 1. Try server-side auto-confirmed registration.
+      // This bypasses GoTrue's default SMTP mailer so it NEVER triggers the 3-4 emails/hour rate limit.
+      try {
+        const res = await registerUserServerFn({
+          data: {
+            email,
+            password,
+            ...(fullName ? { fullName } : {}),
+          },
+        });
+
+        if (res && res.success) {
+          // User created and auto-confirmed. Immediately authenticate them.
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+
+          if (!signInError && signInData.user) {
+            setUser(signInData.user);
+            setSession(signInData.session);
+            await loadProfile(signInData.user);
+            return { error: null, needsEmailConfirmation: false };
+          }
+        } else if (res && res.error) {
+          // If the error is a user conflict (already registered) or password rule, propagate immediately
+          const lower = res.error.toLowerCase();
+          if (
+            lower.includes("already registered") ||
+            lower.includes("already exists") ||
+            lower.includes("password") ||
+            lower.includes("invalid")
+          ) {
+            return { error: new Error(res.error), needsEmailConfirmation: false };
+          }
+        }
+      } catch (serverFnErr) {
+        console.warn("Server-side registration fallback:", serverFnErr);
+      }
+
+      // 2. Client-side fallback to standard supabase.auth.signUp()
       const redirectUrl = typeof window !== "undefined" ? `${window.location.origin}/dashboard` : "";
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -107,6 +149,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) {
+        if (
+          error.message.toLowerCase().includes("rate limit") ||
+          error.message.toLowerCase().includes("over_email_send_rate_limit")
+        ) {
+          return {
+            error: new Error(
+              "Email rate limit exceeded by Supabase test mailer. Please try logging in directly, or disable 'Confirm email' in Supabase Auth settings."
+            ),
+            needsEmailConfirmation: false,
+          };
+        }
         return { error, needsEmailConfirmation: false };
       }
 

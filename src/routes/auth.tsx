@@ -105,7 +105,18 @@ function AuthPage() {
     setLoading(false);
 
     if (error) {
-      toast.error(error.message);
+      if (
+        error.message.toLowerCase().includes("rate limit") ||
+        error.message.toLowerCase().includes("over_email_send_rate_limit")
+      ) {
+        toast.error("Email Rate Limit Exceeded", {
+          description:
+            "Supabase built-in mailer limit reached. If this account was already created, click 'Sign In' below. To disable email limits completely, turn off 'Confirm email' in your Supabase Auth settings.",
+          duration: 8000,
+        });
+      } else {
+        toast.error(error.message);
+      }
       return;
     }
 
@@ -126,7 +137,18 @@ function AuthPage() {
     const { error } = await resendVerificationEmail(email.trim());
     setResending(false);
     if (error) {
-      toast.error(error.message);
+      if (
+        error.message.toLowerCase().includes("rate limit") ||
+        error.message.toLowerCase().includes("over_email_send_rate_limit")
+      ) {
+        toast.error("Email Rate Limit Exceeded", {
+          description:
+            "Supabase built-in mailer has a strict hourly quota. You can disable 'Confirm email' under Supabase Dashboard -> Auth -> Providers -> Email for instant logins without email limits.",
+          duration: 8000,
+        });
+      } else {
+        toast.error(error.message);
+      }
     } else {
       toast.success("Verification link re-sent! Please check your spam folder too.");
     }

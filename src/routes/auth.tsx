@@ -3,33 +3,59 @@ import { createFileRoute, useNavigate, useSearch, Link } from "@tanstack/react-r
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/auth-context";
+import {
+  supabase,
+  sendPasswordResetEmail,
+  verifyPasswordResetOtp,
+  updateUserPassword,
+} from "@/lib/supabase";
 import logo from "@/assets/snapkut-logo.png.asset.json";
-import { Mail, Lock, User, ArrowLeft, CheckCircle2, RefreshCw, Eye, EyeOff, Sparkles } from "lucide-react";
+import {
+  Mail,
+  Lock,
+  User,
+  ArrowLeft,
+  CheckCircle2,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  Sparkles,
+  KeyRound,
+  ShieldCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 
 interface AuthSearchParams {
   redirect?: string | undefined;
-  mode?: "signin" | "signup" | undefined;
+  mode?: "signin" | "signup" | "forgot-password" | "reset-password" | undefined;
 }
 
 export const Route = createFileRoute("/auth")({
   validateSearch: (search: Record<string, unknown>): AuthSearchParams => {
+    const rawMode = typeof search["mode"] === "string" ? search["mode"].toLowerCase() : undefined;
+    let mode: AuthSearchParams["mode"] = "signin";
+    if (rawMode === "signup") mode = "signup";
+    else if (rawMode === "forgot-password" || rawMode === "forgot") mode = "forgot-password";
+    else if (rawMode === "reset-password" || rawMode === "reset") mode = "reset-password";
+
     return {
       redirect: typeof search["redirect"] === "string" ? search["redirect"] : undefined,
-      mode: search["mode"] === "signup" ? "signup" : "signin",
+      mode,
     };
   },
   head: () => ({
     meta: [
-      { title: "Sign In & Register — Sn_apKut AI" },
+      { title: "Sign In & Security — Sn_apKut AI" },
       {
         name: "description",
-        content: "Access your Sn_apKut AI account to remove backgrounds and manage credits.",
+        content: "Access your Sn_apKut AI account or reset your password securely.",
       },
     ],
   }),
   component: AuthPage,
 });
+
+type AuthView = "signin" | "signup" | "forgot-password" | "reset-password";
 
 function AuthPage() {
   const search = useSearch({ from: "/auth" });
@@ -43,7 +69,16 @@ function AuthPage() {
     loading: authLoading,
   } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<"signin" | "signup">(search.mode === "signup" ? "signup" : "signin");
+  const [activeView, setActiveView] = useState<AuthView>(() => {
+    if (search.mode === "signup") return "signup";
+    if (search.mode === "forgot-password") return "forgot-password";
+    if (search.mode === "reset-password") return "reset-password";
+    return "signin";
+  });
+  const [activeTab, setActiveTab] = useState<"signin" | "signup">(
+    search.mode === "signup" ? "signup" : "signin"
+  );
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -53,14 +88,53 @@ function AuthPage() {
   const [emailVerificationSent, setEmailVerificationSent] = useState(false);
   const [resending, setResending] = useState(false);
 
+  // Forgot password flow states
+  const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [resetSending, setResetSending] = useState(false);
+  const [showOtpInput, setShowOtpInput] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+
+  // Set new password states
+  const [resetNewPassword, setResetNewPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+  const [showResetNewPassword, setShowResetNewPassword] = useState(false);
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false);
+  const [resetUpdating, setResetUpdating] = useState(false);
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
+
   const destination = search.redirect || "/dashboard";
 
-  // If already logged in, redirect immediately
+  // Listen for Supabase password recovery event or URL hash
   useEffect(() => {
-    if (!authLoading && user) {
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash;
+      if (hash.includes("type=recovery") || search.mode === "reset-password") {
+        setIsRecoveryMode(true);
+        setActiveView("reset-password");
+      }
+    }
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setIsRecoveryMode(true);
+        setActiveView("reset-password");
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [search.mode]);
+
+  // If already logged in, redirect immediately UNLESS in password recovery mode
+  useEffect(() => {
+    if (!authLoading && user && !isRecoveryMode && activeView !== "reset-password") {
       navigate({ to: destination });
     }
-  }, [user, authLoading, navigate, destination]);
+  }, [user, authLoading, navigate, destination, isRecoveryMode, activeView]);
 
   const handleOAuth = async (provider: "github" | "facebook") => {
     setOauthLoading(provider);
@@ -102,7 +176,7 @@ function AuthPage() {
         setEmailVerificationSent(true);
       } else if (error.message.toLowerCase().includes("invalid login credentials")) {
         toast.error("Invalid email or password", {
-          description: "Please double-check your credentials and try again.",
+          description: "Please double-check your credentials, or click 'Forgot password?' to reset.",
         });
       } else {
         toast.error(error.message);
@@ -183,6 +257,98 @@ function AuthPage() {
     }
   };
 
+  // Send password reset email
+  const handleSendResetEmail = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = email.trim();
+    if (!trimmed) {
+      toast.error("Please enter your registered email address.");
+      return;
+    }
+
+    setResetSending(true);
+    const res = await sendPasswordResetEmail(trimmed);
+    setResetSending(false);
+
+    if (res.success) {
+      setResetEmailSent(true);
+      toast.success("Password reset email sent!", {
+        description: `Check your inbox at ${trimmed} for your reset link.`,
+      });
+    } else {
+      const msg = res.error || "Failed to send reset email";
+      if (
+        msg.toLowerCase().includes("rate limit") ||
+        msg.toLowerCase().includes("over_email_send_rate_limit")
+      ) {
+        toast.error("Email Rate Limit Exceeded", {
+          description:
+            "Supabase email rate limit reached. Please wait a few minutes, or if you already received a recovery code, enter it below.",
+          duration: 8000,
+        });
+      } else {
+        toast.error(msg);
+      }
+    }
+  };
+
+  // Verify OTP recovery code
+  const handleVerifyOtpAndProceed = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedEmail = email.trim();
+    const trimmedOtp = otpCode.trim();
+
+    if (!trimmedEmail) {
+      toast.error("Please enter your email address.");
+      return;
+    }
+    if (trimmedOtp.length < 6) {
+      toast.error("Please enter the complete 6-digit recovery code.");
+      return;
+    }
+
+    setVerifyingOtp(true);
+    const res = await verifyPasswordResetOtp(trimmedEmail, trimmedOtp);
+    setVerifyingOtp(false);
+
+    if (res.success) {
+      toast.success("Security code verified!");
+      setIsRecoveryMode(true);
+      setActiveView("reset-password");
+    } else {
+      toast.error(res.error || "Invalid or expired recovery code. Please try again.");
+    }
+  };
+
+  // Set new password
+  const handleSetNewPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (resetNewPassword.length < 6) {
+      toast.error("Password must be at least 6 characters long.");
+      return;
+    }
+    if (resetNewPassword !== resetConfirmPassword) {
+      toast.error("Passwords do not match.");
+      return;
+    }
+
+    setResetUpdating(true);
+    const res = await updateUserPassword(resetNewPassword);
+    setResetUpdating(false);
+
+    if (res.success) {
+      toast.success("Password reset successfully!", {
+        description: "Your new password is now active. Welcome back!",
+      });
+      setIsRecoveryMode(false);
+      setResetNewPassword("");
+      setResetConfirmPassword("");
+      navigate({ to: destination });
+    } else {
+      toast.error(res.error || "Failed to update password. Please request a new reset link.");
+    }
+  };
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12 relative overflow-hidden">
       {/* Background radial glow */}
@@ -257,12 +423,262 @@ function AuthPage() {
                 className="w-full text-xs text-muted-foreground"
                 onClick={() => {
                   setEmailVerificationSent(false);
-                  setActiveTab("signin");
+                  setActiveView("signin");
                 }}
               >
                 Back to Sign In
               </Button>
             </div>
+          </div>
+        ) : activeView === "forgot-password" ? (
+          /* Forgot Password View */
+          <div className="space-y-5">
+            {resetEmailSent ? (
+              /* Reset Link Sent Confirmation */
+              <div className="space-y-5 text-center py-2">
+                <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-primary/15 text-primary">
+                  <Mail className="size-7 animate-pulse" />
+                </div>
+
+                <div>
+                  <h2 className="text-lg font-bold text-foreground">Check your inbox</h2>
+                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                    We&apos;ve sent a password reset link to <strong className="text-foreground">{email}</strong>.
+                    Click the link in the email to set your new password.
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-[11px] text-muted-foreground text-left leading-relaxed">
+                  💡 <strong>Tip:</strong> If you don&apos;t see the email within 1–2 minutes, please check your <strong>Spam</strong> or <strong>Promotions</strong> folder.
+                </div>
+
+                {/* Optional 6-digit recovery code input */}
+                <div className="rounded-lg border border-border/60 bg-background/40 p-4 text-left">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-foreground">Received a 6-digit code?</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowOtpInput(!showOtpInput)}
+                      className="text-[11px] text-primary hover:underline cursor-pointer font-medium"
+                    >
+                      {showOtpInput ? "Hide code input" : "Enter code here"}
+                    </button>
+                  </div>
+
+                  {showOtpInput && (
+                    <form onSubmit={handleVerifyOtpAndProceed} className="space-y-3 mt-3 pt-3 border-t border-border/50">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] text-muted-foreground font-medium">6-Digit Recovery Code</label>
+                        <input
+                          type="text"
+                          maxLength={6}
+                          required
+                          value={otpCode}
+                          onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                          placeholder="123456"
+                          className="w-full tracking-widest text-center font-mono rounded-md border border-input bg-background/60 py-2 text-base text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={verifyingOtp || otpCode.trim().length < 6}
+                        className="bg-gradient-cta glow w-full border-0 text-xs font-semibold text-primary-foreground h-9"
+                      >
+                        {verifyingOtp ? (
+                          <span className="flex items-center gap-1.5">
+                            <RefreshCw className="size-3.5 animate-spin" /> Verifying...
+                          </span>
+                        ) : (
+                          "Verify Code & Continue"
+                        )}
+                      </Button>
+                    </form>
+                  )}
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs gap-1.5 h-9"
+                    onClick={() => handleSendResetEmail()}
+                    disabled={resetSending}
+                  >
+                    <RefreshCw className={`size-3.5 ${resetSending ? "animate-spin" : ""}`} />
+                    {resetSending ? "Sending link..." : "Resend reset link"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-xs text-muted-foreground h-9"
+                    onClick={() => {
+                      setResetEmailSent(false);
+                      setActiveView("signin");
+                    }}
+                  >
+                    Back to Sign In
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              /* Request Reset Link Form */
+              <div>
+                <div className="text-center mb-5">
+                  <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-primary/15 text-primary mb-3">
+                    <KeyRound className="size-6" />
+                  </div>
+                  <h2 className="text-lg font-bold text-foreground">Forgot your password?</h2>
+                  <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                    No problem. Enter your account&apos;s email address and we&apos;ll send you a secure link to create a new password.
+                  </p>
+                </div>
+
+                <form onSubmit={handleSendResetEmail} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground">Email Address</label>
+                    <div className="relative">
+                      <Mail className="size-4 absolute left-3 top-3 text-muted-foreground pointer-events-none" />
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        className="w-full rounded-md border border-input bg-background/60 pl-9 pr-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    disabled={resetSending || !email}
+                    className="bg-gradient-cta glow w-full border-0 font-semibold text-primary-foreground h-10 mt-1"
+                  >
+                    {resetSending ? (
+                      <span className="flex items-center gap-2">
+                        <RefreshCw className="size-4 animate-spin" /> Sending reset link...
+                      </span>
+                    ) : (
+                      "Send Reset Link"
+                    )}
+                  </Button>
+
+                  <div className="pt-2 text-center">
+                    <button
+                      type="button"
+                      onClick={() => setActiveView("signin")}
+                      className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    >
+                      <ArrowLeft className="size-3.5" /> Back to Sign In
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+          </div>
+        ) : activeView === "reset-password" ? (
+          /* Set New Password View */
+          <div className="space-y-5">
+            <div className="text-center mb-5">
+              <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-primary/15 text-primary mb-3">
+                <ShieldCheck className="size-6" />
+              </div>
+              <h2 className="text-lg font-bold text-foreground">Create New Password</h2>
+              <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                Choose a strong new password for your Sn_apKut AI account.
+              </p>
+            </div>
+
+            <form onSubmit={handleSetNewPassword} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">New Password</label>
+                <div className="relative">
+                  <Lock className="size-4 absolute left-3 top-3 text-muted-foreground pointer-events-none" />
+                  <input
+                    type={showResetNewPassword ? "text" : "password"}
+                    required
+                    minLength={6}
+                    value={resetNewPassword}
+                    onChange={(e) => setResetNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full rounded-md border border-input bg-background/60 pl-9 pr-10 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetNewPassword(!showResetNewPassword)}
+                    className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    {showResetNewPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">Confirm New Password</label>
+                <div className="relative">
+                  <Lock className="size-4 absolute left-3 top-3 text-muted-foreground pointer-events-none" />
+                  <input
+                    type={showResetConfirmPassword ? "text" : "password"}
+                    required
+                    minLength={6}
+                    value={resetConfirmPassword}
+                    onChange={(e) => setResetConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full rounded-md border border-input bg-background/60 pl-9 pr-10 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetConfirmPassword(!showResetConfirmPassword)}
+                    className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    {showResetConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {resetNewPassword && resetConfirmPassword && resetNewPassword !== resetConfirmPassword && (
+                <p className="text-xs text-destructive font-medium">
+                  Passwords do not match.
+                </p>
+              )}
+
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5 text-[11px] text-muted-foreground leading-relaxed">
+                Must be at least 6 characters long. For security, combine letters and numbers.
+              </div>
+
+              <Button
+                type="submit"
+                disabled={
+                  resetUpdating ||
+                  !resetNewPassword ||
+                  resetNewPassword.length < 6 ||
+                  resetNewPassword !== resetConfirmPassword
+                }
+                className="bg-gradient-cta glow w-full border-0 font-semibold text-primary-foreground h-10 mt-1"
+              >
+                {resetUpdating ? (
+                  <span className="flex items-center gap-2">
+                    <RefreshCw className="size-4 animate-spin" /> Updating password...
+                  </span>
+                ) : (
+                  "Update Password & Sign In"
+                )}
+              </Button>
+
+              <div className="pt-2 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRecoveryMode(false);
+                    setActiveView("signin");
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="size-3.5" /> Back to Sign In
+                </button>
+              </div>
+            </form>
           </div>
         ) : (
           /* Sign In & Sign Up Form */
@@ -318,7 +734,10 @@ function AuthPage() {
 
             <Tabs
               value={activeTab}
-              onValueChange={(val) => setActiveTab(val as "signin" | "signup")}
+              onValueChange={(val) => {
+                setActiveTab(val as "signin" | "signup");
+                setActiveView(val as "signin" | "signup");
+              }}
               className="w-full"
             >
               <TabsList className="grid w-full grid-cols-2 mb-6">
@@ -347,6 +766,16 @@ function AuthPage() {
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-semibold text-foreground">Password</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveView("forgot-password");
+                          setResetEmailSent(false);
+                        }}
+                        className="text-xs text-primary hover:underline hover:text-primary/90 transition-colors cursor-pointer font-medium"
+                      >
+                        Forgot password?
+                      </button>
                     </div>
                     <div className="relative">
                       <Lock className="size-4 absolute left-3 top-3 text-muted-foreground pointer-events-none" />
@@ -466,4 +895,3 @@ function AuthPage() {
     </div>
   );
 }
-

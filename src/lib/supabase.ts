@@ -241,6 +241,58 @@ export async function fetchUserCutouts(userId: string): Promise<CutoutHistoryRow
   }
 }
 
+// Update user display name in both auth metadata and profiles table
+export async function updateUserProfileName(
+  userId: string,
+  newName: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // 1. Update Supabase Auth metadata
+    const { error: authError } = await supabase.auth.updateUser({
+      data: { full_name: newName },
+    });
+    if (authError) {
+      console.warn("Auth updateUser error:", authError.message);
+    }
+
+    // 2. Update public.profiles row
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        full_name: newName,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId);
+
+    if (profileError) {
+      return { success: false, error: profileError.message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Update user password
+export async function updateUserPassword(
+  newPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 // Save Razorpay transaction record
 export async function savePaymentRecord(
   userId: string,

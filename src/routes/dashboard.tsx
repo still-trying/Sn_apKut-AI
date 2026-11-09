@@ -27,6 +27,10 @@ import {
   Calendar,
   BarChart2,
   Filter,
+  Lock,
+  Eye,
+  EyeOff,
+  Save,
 } from "lucide-react";
 import logo from "@/assets/snapkut-logo.png.asset.json";
 import { useUserCredits } from "@/hooks/use-user-credits";
@@ -41,6 +45,8 @@ import {
   addCreditsToProfile,
   savePaymentRecord,
   fetchUserCutouts,
+  updateUserProfileName,
+  updateUserPassword,
 } from "@/lib/supabase";
 import { toast } from "sonner";
 
@@ -82,6 +88,15 @@ function DashboardPage() {
   const [cloudCutouts, setCloudCutouts] = useState<CutoutHistoryItem[]>([]);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
 
+  // User profile & security state
+  const [displayNameInput, setDisplayNameInput] = useState("");
+  const [updatingName, setUpdatingName] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+
   const { plan: localPlan, creditsRemaining: localCredits, totalProcessed: localTotal, monthProcessed: localMonth, apiKey: localKey, makePro, add } =
     useUserCredits();
   const { history, removeItem, clear } = useCutoutHistory();
@@ -94,6 +109,15 @@ function DashboardPage() {
       navigate({ to: "/auth", search: { redirect: "/dashboard" } });
     }
   }, [user, authLoading, navigate]);
+
+  // Sync profile display name into local input
+  useEffect(() => {
+    if (profile?.full_name) {
+      setDisplayNameInput(profile.full_name);
+    } else if (user?.email && !displayNameInput) {
+      setDisplayNameInput(user.email.split("@")[0] || "");
+    }
+  }, [profile?.full_name, user?.email]);
 
   // Fetch user cutouts from Supabase cloud database
   useEffect(() => {
@@ -265,6 +289,54 @@ function DashboardPage() {
     setCopiedKey(true);
     toast.success("API key copied to clipboard!");
     setTimeout(() => setCopiedKey(false), 2000);
+  };
+
+  const handleUpdateName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    const trimmed = displayNameInput.trim();
+    if (!trimmed) {
+      toast.error("Display name cannot be empty.");
+      return;
+    }
+
+    setUpdatingName(true);
+    const res = await updateUserProfileName(user.id, trimmed);
+    setUpdatingName(false);
+
+    if (res.success) {
+      await refreshProfile();
+      toast.success("Display name updated successfully!");
+    } else {
+      toast.error(res.error || "Failed to update display name.");
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    if (newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters long.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match. Please re-enter.");
+      return;
+    }
+
+    setUpdatingPassword(true);
+    const res = await updateUserPassword(newPassword);
+    setUpdatingPassword(false);
+
+    if (res.success) {
+      setNewPassword("");
+      setConfirmPassword("");
+      toast.success("Password updated successfully!");
+    } else {
+      toast.error(res.error || "Failed to update password.");
+    }
   };
 
   if (authLoading) {
@@ -949,39 +1021,187 @@ function DashboardPage() {
           {activeTab === "settings" && (
             <div className="space-y-6 max-w-4xl">
               <div className="border-b border-border pb-4">
-                <h2 className="text-xl font-bold">Account & Data Settings</h2>
+                <h2 className="text-xl font-bold text-foreground">Account & Security Settings</h2>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Manage privacy, local data storage, and compliance preferences.
+                  Manage your personal details, credentials, and local data storage.
                 </p>
               </div>
 
-              {/* User Account Info */}
-              <div className="glass-card p-6 space-y-4">
-                <h3 className="text-sm font-bold">Account Details</h3>
-                <div className="grid gap-3 sm:grid-cols-2 text-xs">
-                  <div className="rounded-lg border border-border/80 bg-background/50 p-3">
-                    <span className="text-muted-foreground block text-[11px]">Email Address</span>
-                    <span className="font-semibold text-foreground text-sm mt-0.5 block truncate">{user?.email}</span>
+              {/* 1. Profile & Display Name Card */}
+              <div className="glass-card p-6 space-y-5 border border-border/80">
+                <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground">Profile Details</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Your identity and contact information on Sn_apKut AI.
+                    </p>
                   </div>
-                  <div className="rounded-lg border border-border/80 bg-background/50 p-3">
-                    <span className="text-muted-foreground block text-[11px]">Display Name</span>
-                    <span className="font-semibold text-foreground text-sm mt-0.5 block">{profile?.full_name || "—"}</span>
+                  <Badge variant="outline" className="text-xs">
+                    {activePlan === "pro" ? "Pro Member" : "Free Plan"}
+                  </Badge>
+                </div>
+
+                <form onSubmit={handleUpdateName} className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2 text-xs">
+                    {/* Read-only Email Address */}
+                    <div className="space-y-1.5">
+                      <label className="text-muted-foreground font-semibold block text-[11px]">
+                        Email Address (Permanent)
+                      </label>
+                      <div className="rounded-lg border border-border/80 bg-background/50 px-3.5 py-2.5 text-sm font-medium text-foreground truncate flex items-center justify-between">
+                        <span className="truncate">{user?.email}</span>
+                        <span className="ml-2 inline-flex items-center text-[10px] text-green-500 bg-green-500/10 rounded px-1.5 py-0.5 shrink-0">
+                          Verified
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Editable Display Name */}
+                    <div className="space-y-1.5">
+                      <label className="text-muted-foreground font-semibold block text-[11px]">
+                        Display Name
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          required
+                          value={displayNameInput}
+                          onChange={(e) => setDisplayNameInput(e.target.value)}
+                          placeholder="Your full name"
+                          className="w-full rounded-lg border border-input bg-background/60 px-3.5 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                    </div>
                   </div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+                    <p className="text-[11px] text-muted-foreground">
+                      This name will be displayed across your dashboard and generated cutouts.
+                    </p>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={updatingName || !displayNameInput.trim() || displayNameInput.trim() === profile?.full_name}
+                      className="bg-gradient-cta glow border-0 text-xs font-semibold text-primary-foreground gap-1.5 w-fit"
+                    >
+                      <Save className="size-3.5" />
+                      {updatingName ? "Saving..." : "Save Name"}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+
+              {/* 2. Change Password Card */}
+              <div className="glass-card p-6 space-y-5 border border-border/80">
+                <div className="border-b border-border/60 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Lock className="size-4 text-primary" />
+                    <h3 className="text-sm font-bold text-foreground">Change Password</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Set a new password for your account. Must be at least 6 characters long.
+                  </p>
+                </div>
+
+                <form onSubmit={handleUpdatePassword} className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2 text-xs">
+                    {/* New Password */}
+                    <div className="space-y-1.5">
+                      <label className="text-muted-foreground font-semibold block text-[11px]">
+                        New Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showNewPassword ? "text" : "password"}
+                          required
+                          minLength={6}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full rounded-lg border border-input bg-background/60 pl-3.5 pr-10 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                        >
+                          {showNewPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Confirm New Password */}
+                    <div className="space-y-1.5">
+                      <label className="text-muted-foreground font-semibold block text-[11px]">
+                        Confirm New Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          required
+                          minLength={6}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full rounded-lg border border-input bg-background/60 pl-3.5 pr-10 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                        >
+                          {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {newPassword && confirmPassword && newPassword !== confirmPassword && (
+                    <p className="text-xs text-destructive font-medium">
+                      Passwords do not match.
+                    </p>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+                    <span className="text-[11px] text-muted-foreground">
+                      Use at least 6 characters with letters and numbers.
+                    </span>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={updatingPassword || !newPassword || newPassword.length < 6 || newPassword !== confirmPassword}
+                      className="bg-gradient-cta glow border-0 text-xs font-semibold text-primary-foreground gap-1.5 w-fit"
+                    >
+                      <Lock className="size-3.5" />
+                      {updatingPassword ? "Updating..." : "Update Password"}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+
+              {/* 3. Account Actions & Sign Out */}
+              <div className="glass-card p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border border-border/80">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Sign Out</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    End your active session on this device.
+                  </p>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => signOut()}
-                  className="gap-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className="gap-2 text-xs text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive w-fit"
                 >
-                  <LogOut className="size-3.5" /> Sign Out
+                  <LogOut className="size-3.5" /> Sign Out of Sn_apKut AI
                 </Button>
               </div>
 
-              <div className="glass-card p-6 space-y-4">
-                <h3 className="text-sm font-bold">Local History Storage</h3>
+              {/* 4. Local History Storage */}
+              <div className="glass-card p-6 space-y-4 border border-border/80">
+                <h3 className="text-sm font-bold text-foreground">Local History Storage</h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Your processed cutouts are saved strictly on your device inside your browser&apos;s local storage. No server tracks your download history.
+                  Your processed cutouts are saved on your device inside your browser&apos;s local storage and synced with your cloud account.
                 </p>
                 <Button
                   variant="destructive"
@@ -997,7 +1217,8 @@ function DashboardPage() {
                 </Button>
               </div>
 
-              <div className="glass-card p-6 space-y-2 text-xs text-muted-foreground">
+              {/* 5. 24-Hour Auto-Purge Policy */}
+              <div className="glass-card p-6 space-y-2 text-xs text-muted-foreground border border-border/80">
                 <p className="font-semibold text-foreground text-sm">24-Hour Auto-Purge Policy</p>
                 <p>
                   Images processed through Sn_apKut AI are held in ephemeral cloud cache and permanently deleted 24 hours after processing.

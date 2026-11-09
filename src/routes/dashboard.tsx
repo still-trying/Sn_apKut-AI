@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,10 +24,14 @@ import {
   Zap,
   LogOut,
   User as UserIcon,
+  Calendar,
+  BarChart2,
+  Filter,
 } from "lucide-react";
 import logo from "@/assets/snapkut-logo.png.asset.json";
 import { useUserCredits } from "@/hooks/use-user-credits";
 import { useCutoutHistory } from "@/hooks/use-cutout-history";
+import { CutoutHistoryItem } from "@/lib/history-storage";
 import { openRazorpayCheckout } from "@/lib/razorpay";
 import { UploadZone } from "@/components/site/UploadZone";
 import { HistoryGallery } from "@/components/site/HistoryGallery";
@@ -36,6 +40,7 @@ import {
   upgradeProfileToPro,
   addCreditsToProfile,
   savePaymentRecord,
+  fetchUserCutouts,
 } from "@/lib/supabase";
 import { toast } from "sonner";
 
@@ -53,44 +58,29 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 type DashboardTab = "dashboard" | "upload" | "history" | "billing" | "api" | "settings";
+type HistoryFilter = "all" | "today" | "yesterday" | "week";
 
-function formatRelativeTime(timestamp: number): string {
+function formatProcessedDate(timestamp: number): string {
   if (!timestamp) return "Recently";
-  const diffSec = Math.floor((Date.now() - timestamp) / 1000);
-  if (diffSec < 60) return "Just now";
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin} min ago`;
-  const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `${diffHours} hours ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays} days ago`;
-}
+  const date = new Date(timestamp);
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
 
-const DEMO_RECENT_IMAGES = [
-  {
-    id: "sample-1",
-    name: "product-photo.jpg",
-    createdAt: Date.now() - 2 * 60 * 60 * 1000,
-    resultUrl: "http://res.cloudinary.com/usur2rt5/image/upload/v1793992293/irzntds9ryc4u1rsxr1e.png",
-  },
-  {
-    id: "sample-2",
-    name: "headshot.png",
-    createdAt: Date.now() - 5 * 60 * 60 * 1000,
-    resultUrl: "http://res.cloudinary.com/usur2rt5/image/upload/v1793992293/irzntds9ryc4u1rsxr1e.png",
-  },
-  {
-    id: "sample-3",
-    name: "team-photo.jpg",
-    createdAt: Date.now() - 24 * 60 * 60 * 1000,
-    resultUrl: "http://res.cloudinary.com/usur2rt5/image/upload/v1793992293/irzntds9ryc4u1rsxr1e.png",
-  },
-];
+  const timeStr = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+
+  if (isToday) return `Today, ${timeStr}`;
+  if (isYesterday) return `Yesterday, ${timeStr}`;
+  return `${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${timeStr}`;
+}
 
 function DashboardPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<DashboardTab>("dashboard");
   const [copiedKey, setCopiedKey] = useState(false);
+  const [cloudCutouts, setCloudCutouts] = useState<CutoutHistoryItem[]>([]);
+  const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
 
   const { plan: localPlan, creditsRemaining: localCredits, totalProcessed: localTotal, monthProcessed: localMonth, apiKey: localKey, makePro, add } =
     useUserCredits();
@@ -105,11 +95,116 @@ function DashboardPage() {
     }
   }, [user, authLoading, navigate]);
 
+  // Fetch user cutouts from Supabase cloud database
+  useEffect(() => {
+    if (user) {
+      fetchUserCutouts(user.id).then((rows) => {
+        const mapped: CutoutHistoryItem[] = rows.map((r) => ({
+          id: r.id,
+          name: r.image_name || "cutout.png",
+          size: Number(r.image_size || 0),
+          resultUrl: r.result_url,
+          createdAt: new Date(r.created_at).getTime(),
+          rawResponse: r.raw_response,
+        }));
+        setCloudCutouts(mapped);
+      });
+    }
+  }, [user, activeTab]);
+
   const activePlan = profile?.plan || localPlan;
   const activeCredits = profile?.credits_remaining ?? localCredits;
   const activeTotal = profile?.total_processed ?? localTotal;
   const activeMonth = profile?.month_processed ?? localMonth;
   const activeApiKey = profile?.api_key || localKey;
+
+  // Combine cloud & local cutout history
+  const allCutouts = useMemo(() => {
+    const map = new Map<string, CutoutHistoryItem>();
+    history.forEach((item) => {
+      map.set(item.resultUrl || item.id, item);
+    });
+    cloudCutouts.forEach((item) => {
+      map.set(item.resultUrl || item.id, item);
+    });
+    return Array.from(map.values()).sort((a, b) => b.createdAt - a.createdAt);
+  }, [history, cloudCutouts]);
+
+  // Calculate day-wise statistics
+  const dayWiseStats = useMemo(() => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
+    const sevenDaysAgoStart = todayStart - 6 * 24 * 60 * 60 * 1000;
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+    let todayCount = 0;
+    let yesterdayCount = 0;
+    let last7DaysCount = 0;
+    let thisMonthCount = 0;
+
+    // 7-day breakdown (past 6 days + today)
+    const days: { dateStr: string; label: string; shortDate: string; count: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const start = d.getTime();
+      const end = start + 24 * 60 * 60 * 1000;
+      const count = allCutouts.filter(
+        (item) => item.createdAt >= start && item.createdAt < end
+      ).length;
+
+      let label = d.toLocaleDateString("en-US", { weekday: "short" });
+      if (i === 0) label = "Today";
+      else if (i === 1) label = "Yesterday";
+
+      days.push({
+        dateStr: d.toISOString().slice(0, 10),
+        label,
+        shortDate: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        count,
+      });
+
+      if (i === 0) todayCount = count;
+      if (i === 1) yesterdayCount = count;
+    }
+
+    allCutouts.forEach((item) => {
+      if (item.createdAt >= sevenDaysAgoStart) last7DaysCount++;
+      if (item.createdAt >= monthStart) thisMonthCount++;
+    });
+
+    const totalAllTime = Math.max(activeTotal, allCutouts.length);
+    const maxDayCount = Math.max(1, ...days.map((d) => d.count));
+
+    return {
+      todayCount,
+      yesterdayCount,
+      last7DaysCount,
+      thisMonthCount: Math.max(activeMonth, thisMonthCount),
+      totalAllTime,
+      days,
+      maxDayCount,
+    };
+  }, [allCutouts, activeTotal, activeMonth]);
+
+  // Filter recent cutouts based on selected day filter
+  const filteredRecent = useMemo(() => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
+    const sevenDaysAgoStart = todayStart - 6 * 24 * 60 * 60 * 1000;
+
+    if (historyFilter === "today") {
+      return allCutouts.filter((item) => item.createdAt >= todayStart);
+    }
+    if (historyFilter === "yesterday") {
+      return allCutouts.filter((item) => item.createdAt >= yesterdayStart && item.createdAt < todayStart);
+    }
+    if (historyFilter === "week") {
+      return allCutouts.filter((item) => item.createdAt >= sevenDaysAgoStart);
+    }
+    return allCutouts.slice(0, 15);
+  }, [allCutouts, historyFilter]);
 
   const handleUpgradeToPro = () => {
     openRazorpayCheckout({
@@ -171,10 +266,6 @@ function DashboardPage() {
     toast.success("API key copied to clipboard!");
     setTimeout(() => setCopiedKey(false), 2000);
   };
-
-  const displayedTotal = activeTotal > 0 ? activeTotal : (history.length > 0 ? history.length : 124);
-  const displayedMonth = activeMonth > 0 ? activeMonth : (history.length > 0 ? history.length : 45);
-  const displayedRecent = history.length > 0 ? history.slice(0, 6) : DEMO_RECENT_IMAGES;
 
   if (authLoading) {
     return (
@@ -378,19 +469,24 @@ function DashboardPage() {
             <div className="space-y-8">
               {/* 4 Stat Cards */}
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {/* Stat 1: Images Processed */}
+                {/* Stat 1: Images Processed Day-Wise */}
                 <div className="glass-card p-5 relative overflow-hidden">
                   <div className="flex items-center justify-between">
                     <div className="flex size-9 items-center justify-center rounded-lg bg-primary/12 text-primary">
                       <ImageIcon className="size-4" />
                     </div>
-                    <span className="inline-flex items-center text-xs font-semibold text-green-500 bg-green-500/10 rounded px-1.5 py-0.5">
-                      +12%
+                    <span className="inline-flex items-center text-xs font-semibold text-primary bg-primary/10 rounded px-1.5 py-0.5">
+                      {dayWiseStats.todayCount > 0 ? `+${dayWiseStats.todayCount} Today` : "Today"}
                     </span>
                   </div>
                   <div className="mt-4">
-                    <p className="text-3xl font-extrabold tracking-tight">{displayedTotal}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Images Processed</p>
+                    <p className="text-3xl font-extrabold tracking-tight text-foreground">
+                      {dayWiseStats.todayCount}
+                    </p>
+                    <p className="text-xs font-medium text-foreground/80 mt-1">Processed Today</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {dayWiseStats.totalAllTime} total all-time
+                    </p>
                   </div>
                 </div>
 
@@ -400,9 +496,13 @@ function DashboardPage() {
                     <div className="flex size-9 items-center justify-center rounded-lg bg-primary/12 text-primary">
                       <Sparkles className="size-4" />
                     </div>
-                    {activePlan === "pro" && (
+                    {activePlan === "pro" ? (
                       <span className="inline-flex items-center text-xs font-semibold text-primary bg-primary/10 rounded px-1.5 py-0.5">
                         Unlimited
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center text-xs font-semibold text-muted-foreground bg-muted/40 rounded px-1.5 py-0.5">
+                        Free Tier
                       </span>
                     )}
                   </div>
@@ -410,7 +510,10 @@ function DashboardPage() {
                     <p className="text-3xl font-extrabold tracking-tight">
                       {activePlan === "pro" ? "∞" : activeCredits}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">Credits Remaining</p>
+                    <p className="text-xs font-medium text-foreground/80 mt-1">Credits Remaining</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {activePlan === "pro" ? "Unlimited Pro cutouts" : "Resets to 5 daily"}
+                    </p>
                   </div>
                 </div>
 
@@ -421,28 +524,124 @@ function DashboardPage() {
                       <TrendingUp className="size-4" />
                     </div>
                     <span className="inline-flex items-center text-xs font-semibold text-green-500 bg-green-500/10 rounded px-1.5 py-0.5">
-                      +8%
+                      This Month
                     </span>
                   </div>
                   <div className="mt-4">
-                    <p className="text-3xl font-extrabold tracking-tight">{displayedMonth}</p>
-                    <p className="text-xs text-muted-foreground mt-1">This Month</p>
+                    <p className="text-3xl font-extrabold tracking-tight">{dayWiseStats.thisMonthCount}</p>
+                    <p className="text-xs font-medium text-foreground/80 mt-1">Processed This Month</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {dayWiseStats.last7DaysCount} in the past 7 days
+                    </p>
                   </div>
                 </div>
 
-                {/* Stat 4: Avg Time */}
+                {/* Stat 4: Avg Speed */}
                 <div className="glass-card p-5 relative overflow-hidden">
                   <div className="flex items-center justify-between">
                     <div className="flex size-9 items-center justify-center rounded-lg bg-primary/12 text-primary">
                       <Timer className="size-4" />
                     </div>
                     <span className="inline-flex items-center text-xs font-semibold text-green-500 bg-green-500/10 rounded px-1.5 py-0.5">
-                      -0.5s
+                      Sub-5s
                     </span>
                   </div>
                   <div className="mt-4">
                     <p className="text-3xl font-extrabold tracking-tight">3.2s</p>
-                    <p className="text-xs text-muted-foreground mt-1">Avg. Time</p>
+                    <p className="text-xs font-medium text-foreground/80 mt-1">Avg. Processing Speed</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Cloud GPU accelerated</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Day-Wise Processing Activity Panel */}
+              <div className="glass-card p-6 relative overflow-hidden border border-border/80">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="size-4 text-primary" />
+                      <h2 className="text-base font-bold text-foreground">Day-Wise Processing Activity</h2>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Track your images processed day-by-day across the last 7 days.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
+                      Today: {dayWiseStats.todayCount}
+                    </span>
+                    <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-muted/40 text-muted-foreground border border-border/60">
+                      7 Days: {dayWiseStats.last7DaysCount}
+                    </span>
+                    <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-muted/40 text-muted-foreground border border-border/60">
+                      All-Time: {dayWiseStats.totalAllTime}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 7-Day Activity Chart Bars */}
+                <div className="grid grid-cols-7 gap-2 sm:gap-4 pt-6 pb-2 items-end min-h-[140px] border-b border-border/50">
+                  {dayWiseStats.days.map((d, idx) => {
+                    const heightPercent =
+                      d.count === 0 ? 8 : Math.max(20, Math.round((d.count / dayWiseStats.maxDayCount) * 100));
+                    const isToday = idx === 6;
+
+                    return (
+                      <div key={d.dateStr} className="flex flex-col items-center gap-2 group">
+                        <span
+                          className={`text-xs font-bold transition-transform group-hover:scale-110 ${
+                            d.count > 0 ? (isToday ? "text-primary" : "text-foreground") : "text-muted-foreground/60"
+                          }`}
+                        >
+                          {d.count}
+                        </span>
+
+                        <div className="w-full max-w-[46px] h-24 flex items-end justify-center rounded-lg bg-muted/20 p-1">
+                          <div
+                            style={{ height: `${heightPercent}%` }}
+                            className={`w-full rounded-md transition-all duration-300 ${
+                              d.count > 0
+                                ? isToday
+                                  ? "bg-gradient-to-t from-primary/80 to-primary shadow-[0_0_12px_rgba(var(--primary-rgb),0.4)]"
+                                  : "bg-gradient-to-t from-primary/40 to-primary/70"
+                                : "bg-muted/40"
+                            }`}
+                          />
+                        </div>
+
+                        <div className="text-center">
+                          <span
+                            className={`block text-[11px] font-semibold ${
+                              isToday ? "text-primary" : "text-muted-foreground"
+                            }`}
+                          >
+                            {d.label}
+                          </span>
+                          <span className="block text-[10px] text-muted-foreground/70">{d.shortDate}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Day-wise metrics summary bar */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 text-center">
+                  <div className="rounded-lg bg-background/50 p-2.5 border border-border/50">
+                    <span className="block text-lg font-bold text-foreground">{dayWiseStats.todayCount}</span>
+                    <span className="text-[11px] text-muted-foreground">Today</span>
+                  </div>
+                  <div className="rounded-lg bg-background/50 p-2.5 border border-border/50">
+                    <span className="block text-lg font-bold text-foreground">{dayWiseStats.yesterdayCount}</span>
+                    <span className="text-[11px] text-muted-foreground">Yesterday</span>
+                  </div>
+                  <div className="rounded-lg bg-background/50 p-2.5 border border-border/50">
+                    <span className="block text-lg font-bold text-foreground">{dayWiseStats.last7DaysCount}</span>
+                    <span className="text-[11px] text-muted-foreground">Past 7 Days</span>
+                  </div>
+                  <div className="rounded-lg bg-background/50 p-2.5 border border-border/50">
+                    <span className="block text-lg font-bold text-foreground">{dayWiseStats.thisMonthCount}</span>
+                    <span className="text-[11px] text-muted-foreground">This Month</span>
                   </div>
                 </div>
               </div>
@@ -471,9 +670,9 @@ function DashboardPage() {
                     <div className="flex size-9 items-center justify-center rounded-lg bg-primary/12 text-primary transition-colors group-hover:bg-primary/20">
                       <Clock className="size-4" />
                     </div>
-                    <h3 className="mt-3 font-semibold text-sm">View History</h3>
+                    <h3 className="mt-3 font-semibold text-sm">View Full Gallery</h3>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Access your recent processed cutouts stored in local storage.
+                      Access all your previous cutouts stored locally and in the cloud.
                     </p>
                   </div>
 
@@ -492,69 +691,149 @@ function DashboardPage() {
                 </div>
               </div>
 
-              {/* Recent Images Table */}
-              <div className="glass-card overflow-hidden">
-                <div className="flex items-center justify-between border-b border-border/80 px-6 py-4 bg-muted/20">
-                  <h2 className="font-bold text-sm">Recent Images</h2>
-                  {history.length > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setActiveTab("history")}
-                      className="text-xs text-muted-foreground hover:text-foreground"
+              {/* Recent Images Table with Day Filter */}
+              <div className="glass-card overflow-hidden border border-border/80">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border/80 px-6 py-4 bg-muted/20">
+                  <div>
+                    <h2 className="font-bold text-sm text-foreground">Recent Images</h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {allCutouts.length} total processed {allCutouts.length === 1 ? "image" : "images"}
+                    </p>
+                  </div>
+
+                  {/* Day-Wise Filter Pills */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setHistoryFilter("all")}
+                      className={`text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                        historyFilter === "all"
+                          ? "bg-primary text-primary-foreground font-semibold"
+                          : "text-muted-foreground hover:bg-muted/40"
+                      }`}
                     >
-                      View all ({history.length})
-                    </Button>
-                  )}
+                      All ({allCutouts.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryFilter("today")}
+                      className={`text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                        historyFilter === "today"
+                          ? "bg-primary text-primary-foreground font-semibold"
+                          : "text-muted-foreground hover:bg-muted/40"
+                      }`}
+                    >
+                      Today ({dayWiseStats.todayCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryFilter("yesterday")}
+                      className={`text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                        historyFilter === "yesterday"
+                          ? "bg-primary text-primary-foreground font-semibold"
+                          : "text-muted-foreground hover:bg-muted/40"
+                      }`}
+                    >
+                      Yesterday ({dayWiseStats.yesterdayCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryFilter("week")}
+                      className={`text-xs px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                        historyFilter === "week"
+                          ? "bg-primary text-primary-foreground font-semibold"
+                          : "text-muted-foreground hover:bg-muted/40"
+                      }`}
+                    >
+                      7 Days ({dayWiseStats.last7DaysCount})
+                    </button>
+                  </div>
                 </div>
 
                 {/* Table Header Row */}
                 <div className="grid grid-cols-12 px-6 py-3 text-xs font-semibold text-muted-foreground border-b border-border/60 bg-muted/10">
                   <span className="col-span-6 sm:col-span-5">Image</span>
-                  <span className="col-span-3 sm:col-span-3">Date</span>
+                  <span className="col-span-3 sm:col-span-3">Processed Date</span>
                   <span className="col-span-3 sm:col-span-2">Status</span>
                   <span className="hidden sm:col-span-2 sm:block text-right">Download</span>
                 </div>
 
                 {/* Table Body */}
-                <div className="divide-y divide-border/60">
-                  {displayedRecent.map((item) => (
-                    <div
-                      key={item.id}
-                      className="grid grid-cols-12 items-center px-6 py-3.5 transition-colors hover:bg-muted/15"
-                    >
-                      <div className="col-span-6 sm:col-span-5 flex items-center gap-3 min-w-0 pr-2">
-                        <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border/80 bg-muted/40 text-muted-foreground">
-                          <ImageIcon className="size-4" />
-                        </div>
-                        <span className="truncate text-sm font-medium text-foreground">
-                          {item.name || "cutout.png"}
-                        </span>
-                      </div>
-
-                      <div className="col-span-3 sm:col-span-3 text-xs text-muted-foreground">
-                        {formatRelativeTime(item.createdAt)}
-                      </div>
-
-                      <div className="col-span-3 sm:col-span-2">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-400">
-                          completed
-                        </span>
-                      </div>
-
-                      <div className="hidden sm:col-span-2 sm:flex justify-end">
-                        <a
-                          href={item.resultUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors hover:underline"
-                        >
-                          Download
-                        </a>
-                      </div>
+                {filteredRecent.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center p-12 text-center">
+                    <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-3">
+                      <ImageIcon className="size-7" />
                     </div>
-                  ))}
-                </div>
+                    <h3 className="font-semibold text-sm text-foreground">
+                      {historyFilter === "today"
+                        ? "No images processed today yet"
+                        : historyFilter === "yesterday"
+                        ? "No images were processed yesterday"
+                        : historyFilter === "week"
+                        ? "No images processed in the last 7 days"
+                        : "No images processed yet"}
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+                      Upload an image to remove background in seconds. Each cutout will be stored and tracked day-by-day.
+                    </p>
+                    <Button
+                      size="sm"
+                      onClick={() => setActiveTab("upload")}
+                      className="bg-gradient-cta glow border-0 font-semibold text-primary-foreground gap-1.5 mt-4"
+                    >
+                      <Plus className="size-4" /> Upload New Image
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border/60">
+                    {filteredRecent.map((item) => (
+                      <div
+                        key={item.id}
+                        className="grid grid-cols-12 items-center px-6 py-3.5 transition-colors hover:bg-muted/15"
+                      >
+                        <div className="col-span-6 sm:col-span-5 flex items-center gap-3 min-w-0 pr-2">
+                          <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border/80 bg-background/80 overflow-hidden">
+                            <img
+                              src={item.resultUrl}
+                              alt={item.name || "Cutout"}
+                              className="size-full object-contain p-0.5"
+                              loading="lazy"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = "none";
+                              }}
+                            />
+                          </div>
+                          <span className="truncate text-sm font-medium text-foreground">
+                            {item.name || "cutout.png"}
+                          </span>
+                        </div>
+
+                        <div className="col-span-3 sm:col-span-3 text-xs text-muted-foreground">
+                          {formatProcessedDate(item.createdAt)}
+                        </div>
+
+                        <div className="col-span-3 sm:col-span-2">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-400">
+                            completed
+                          </span>
+                        </div>
+
+                        <div className="hidden sm:col-span-2 sm:flex justify-end">
+                          <a
+                            href={item.resultUrl}
+                            download={item.name ? `cutout-${item.name}` : "cutout.png"}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-medium text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1"
+                          >
+                            <Download className="size-3" />
+                            <span>Download</span>
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

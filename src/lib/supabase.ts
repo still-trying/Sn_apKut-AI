@@ -219,6 +219,28 @@ export async function saveCutoutRecord(
   }
 }
 
+// Fetch cutout records for a specific user from Supabase
+export async function fetchUserCutouts(userId: string): Promise<CutoutHistoryRow[]> {
+  try {
+    const { data, error } = await supabase
+      .from("cutout_history")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (error) {
+      console.warn("fetchUserCutouts error:", error.message);
+      return [];
+    }
+
+    return (data as CutoutHistoryRow[]) || [];
+  } catch (err) {
+    console.error("fetchUserCutouts failed:", err);
+    return [];
+  }
+}
+
 // Save Razorpay transaction record
 export async function savePaymentRecord(
   userId: string,

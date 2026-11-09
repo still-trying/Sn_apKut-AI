@@ -15,6 +15,10 @@ interface AuthContextType {
     password: string,
     fullName?: string
   ) => Promise<{ error: Error | null; needsEmailConfirmation: boolean }>;
+  signInWithOAuth: (
+    provider: "github" | "facebook",
+    redirectPath?: string
+  ) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   resendVerificationEmail: (email: string) => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
@@ -191,6 +195,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const signInWithOAuth = async (provider: "github" | "facebook", redirectPath?: string) => {
+    try {
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const destination = redirectPath || "/dashboard";
+      const redirectTo = `${origin}${destination.startsWith("/") ? destination : `/${destination}`}`;
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo,
+        },
+      });
+
+      if (error) {
+        return { error };
+      }
+
+      if (data?.url && typeof window !== "undefined") {
+        window.location.href = data.url;
+      }
+
+      return { error: null };
+    } catch (err) {
+      return { error: err instanceof Error ? err : new Error(String(err)) };
+    }
+  };
+
   const signOut = async () => {
     try {
       await supabase.auth.signOut();
@@ -221,6 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         signInWithPassword,
         signUpWithPassword,
+        signInWithOAuth,
         signOut,
         resendVerificationEmail,
         refreshProfile,

@@ -34,7 +34,14 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const search = useSearch({ from: "/auth" });
   const navigate = useNavigate();
-  const { user, signInWithPassword, signUpWithPassword, resendVerificationEmail, loading: authLoading } = useAuth();
+  const {
+    user,
+    signInWithPassword,
+    signUpWithPassword,
+    signInWithOAuth,
+    resendVerificationEmail,
+    loading: authLoading,
+  } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"signin" | "signup">(search.mode === "signup" ? "signup" : "signin");
   const [email, setEmail] = useState("");
@@ -42,6 +49,7 @@ function AuthPage() {
   const [fullName, setFullName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState<"github" | "facebook" | null>(null);
   const [emailVerificationSent, setEmailVerificationSent] = useState(false);
   const [resending, setResending] = useState(false);
 
@@ -53,6 +61,27 @@ function AuthPage() {
       navigate({ to: destination });
     }
   }, [user, authLoading, navigate, destination]);
+
+  const handleOAuth = async (provider: "github" | "facebook") => {
+    setOauthLoading(provider);
+    const { error } = await signInWithOAuth(provider, destination);
+    if (error) {
+      setOauthLoading(null);
+      const msg = error.message.toLowerCase();
+      if (
+        msg.includes("not enabled") ||
+        msg.includes("unsupported provider") ||
+        msg.includes("disabled")
+      ) {
+        toast.error(`${provider === "github" ? "GitHub" : "Facebook"} sign-in is not enabled yet`, {
+          description: `To enable ${provider === "github" ? "GitHub" : "Facebook"} login, turn on the ${provider === "github" ? "GitHub" : "Facebook"} provider in your Supabase Dashboard under Authentication > Providers.`,
+          duration: 9000,
+        });
+      } else {
+        toast.error(error.message);
+      }
+    }
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -238,6 +267,55 @@ function AuthPage() {
         ) : (
           /* Sign In & Sign Up Form */
           <div>
+            {/* Social OAuth Sign In (GitHub & Facebook) */}
+            <div className="space-y-3 mb-5">
+              <div className="grid grid-cols-2 gap-2.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={loading || !!oauthLoading}
+                  onClick={() => handleOAuth("github")}
+                  className="h-10 border-border/80 bg-background/60 hover:bg-muted/50 hover:text-foreground transition-all flex items-center justify-center gap-2 text-xs font-semibold"
+                >
+                  {oauthLoading === "github" ? (
+                    <RefreshCw className="size-4 animate-spin text-muted-foreground" />
+                  ) : (
+                    <svg className="size-4 fill-current shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                    </svg>
+                  )}
+                  <span>GitHub</span>
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={loading || !!oauthLoading}
+                  onClick={() => handleOAuth("facebook")}
+                  className="h-10 border-border/80 bg-background/60 hover:bg-muted/50 hover:text-foreground transition-all flex items-center justify-center gap-2 text-xs font-semibold"
+                >
+                  {oauthLoading === "facebook" ? (
+                    <RefreshCw className="size-4 animate-spin text-muted-foreground" />
+                  ) : (
+                    <svg className="size-4 fill-[#1877F2] shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                    </svg>
+                  )}
+                  <span>Facebook</span>
+                </Button>
+              </div>
+
+              {/* Or continue with divider */}
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border/70" />
+                </div>
+                <div className="relative flex justify-center text-[10px] uppercase tracking-wider">
+                  <span className="bg-card px-2.5 text-muted-foreground font-medium">or continue with email</span>
+                </div>
+              </div>
+            </div>
+
             <Tabs
               value={activeTab}
               onValueChange={(val) => setActiveTab(val as "signin" | "signup")}

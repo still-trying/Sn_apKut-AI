@@ -93,7 +93,18 @@ export async function ensureUserProfile(user: { id: string; email?: string | nul
   const fullName =
     typeof user.user_metadata?.["full_name"] === "string"
       ? (user.user_metadata["full_name"] as string)
-      : email.split("@")[0] || "User";
+      : typeof user.user_metadata?.["name"] === "string"
+        ? (user.user_metadata["name"] as string)
+        : typeof user.user_metadata?.["user_name"] === "string"
+          ? (user.user_metadata["user_name"] as string)
+          : email.split("@")[0] || "User";
+
+  const avatarUrl =
+    typeof user.user_metadata?.["avatar_url"] === "string"
+      ? (user.user_metadata["avatar_url"] as string)
+      : typeof user.user_metadata?.["picture"] === "string"
+        ? (user.user_metadata["picture"] as string)
+        : null;
 
   const defaultApiKey = "sk_live_" + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
 
@@ -101,7 +112,7 @@ export async function ensureUserProfile(user: { id: string; email?: string | nul
     id: user.id,
     email,
     full_name: fullName,
-    avatar_url: null,
+    avatar_url: avatarUrl,
     plan: "free",
     credits_remaining: 5,
     total_processed: 0,

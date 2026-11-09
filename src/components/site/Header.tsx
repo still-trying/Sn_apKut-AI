@@ -6,6 +6,7 @@ import logo from "@/assets/snapkut-logo.png.asset.json";
 import { useCutoutHistory } from "@/hooks/use-cutout-history";
 import { useUserCredits } from "@/hooks/use-user-credits";
 import { useAuth } from "@/contexts/auth-context";
+import { toast } from "sonner";
 
 const nav = [
   { label: "Features", href: "#features" },
@@ -23,6 +24,10 @@ export function Header() {
   const activeCredits = profile?.credits_remaining ?? localCredits;
 
   const openHistory = () => {
+    if (!user) {
+      toast.info("Please sign in to access your cutout history.");
+      return;
+    }
     window.dispatchEvent(new CustomEvent("snapkut_open_tab", { detail: "history" }));
     document.getElementById("upload-zone")?.scrollIntoView({ behavior: "smooth" });
   };
@@ -56,19 +61,21 @@ export function Header() {
               {item.label}
             </a>
           ))}
-          <button
-            type="button"
-            onClick={openHistory}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground cursor-pointer"
-          >
-            <Clock className="size-3.5" />
-            History
-            {history.length > 0 && (
-              <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-bold">
-                {history.length}
-              </Badge>
-            )}
-          </button>
+          {user && (
+            <button
+              type="button"
+              onClick={openHistory}
+              className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground cursor-pointer"
+            >
+              <Clock className="size-3.5" />
+              History
+              {history.length > 0 && (
+                <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-bold">
+                  {history.length}
+                </Badge>
+              )}
+            </button>
+          )}
           <Link
             to={user ? "/dashboard" : "/auth"}
             search={user ? {} : { redirect: "/dashboard" }}
@@ -101,7 +108,7 @@ export function Header() {
             </Link>
           )}
 
-          {history.length > 0 && (
+          {user && history.length > 0 && (
             <Button
               variant="outline"
               size="sm"

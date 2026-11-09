@@ -62,13 +62,29 @@ export function UploadZone() {
   useEffect(() => {
     const handleSwitchTab = (event: Event) => {
       const customEvent = event as CustomEvent<string>;
-      if (customEvent.detail === "history" || customEvent.detail === "workspace") {
-        setActiveTab(customEvent.detail as "workspace" | "history");
+      if (customEvent.detail === "history") {
+        if (!user) {
+          toast.info("Please sign in to access your cutout history.", {
+            description: "Sign in or register to view and download your previous cutouts.",
+          });
+          navigate({ to: "/auth", search: { redirect: "/" } });
+          return;
+        }
+        setActiveTab("history");
+      } else if (customEvent.detail === "workspace") {
+        setActiveTab("workspace");
       }
     };
     window.addEventListener("snapkut_open_tab", handleSwitchTab);
     return () => window.removeEventListener("snapkut_open_tab", handleSwitchTab);
-  }, []);
+  }, [user, navigate]);
+
+  // Ensure unauthenticated users are never on the history tab
+  useEffect(() => {
+    if (!user && activeTab === "history") {
+      setActiveTab("workspace");
+    }
+  }, [user, activeTab]);
 
   const handleFile = useCallback((file: File) => {
     setError(null);
@@ -265,16 +281,18 @@ export function UploadZone() {
       // Also deduct locally for instant UI update
       deductCreditOnSuccess();
 
-      // Save to Local Storage cache
-      addItem({
-        name: sourceFile.name || "image.png",
-        size: sourceFile.size,
-        resultUrl: finalUrl,
-        rawResponse:
-          typeof data === "object" && data !== null
-            ? (data as Record<string, unknown>)
-            : undefined,
-      });
+      // Save to Local Storage cache only if user is signed in
+      if (user) {
+        addItem({
+          name: sourceFile.name || "image.png",
+          size: sourceFile.size,
+          resultUrl: finalUrl,
+          rawResponse:
+            typeof data === "object" && data !== null
+              ? (data as Record<string, unknown>)
+              : undefined,
+        });
+      }
 
       if (currentPlan === "pro") {
         toast.success("Background removed! (Pro Unlimited)");
@@ -379,29 +397,38 @@ export function UploadZone() {
     <div className="mx-auto w-full max-w-5xl">
       {/* Top Navigation Tabs: Remove Background Studio vs Cutout History */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <Tabs
-          value={activeTab}
-          onValueChange={(val) => setActiveTab(val as "workspace" | "history")}
-        >
-          <TabsList className="bg-card/70 border border-border p-1 shadow-sm">
-            <TabsTrigger value="workspace" className="gap-2 text-sm font-semibold">
+        {user ? (
+          <Tabs
+            value={activeTab}
+            onValueChange={(val) => setActiveTab(val as "workspace" | "history")}
+          >
+            <TabsList className="bg-card/70 border border-border p-1 shadow-sm">
+              <TabsTrigger value="workspace" className="gap-2 text-sm font-semibold">
+                <Sparkles className="size-4 text-primary" />
+                Remove Background
+              </TabsTrigger>
+              <TabsTrigger value="history" className="gap-2 text-sm font-semibold">
+                <Clock className="size-4 text-primary" />
+                History
+                {history.length > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className="ml-1 px-1.5 py-0 text-[11px] font-bold"
+                  >
+                    {history.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        ) : (
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card/70 px-3.5 py-1.5 text-sm font-semibold text-foreground shadow-sm">
               <Sparkles className="size-4 text-primary" />
-              Remove Background
-            </TabsTrigger>
-            <TabsTrigger value="history" className="gap-2 text-sm font-semibold">
-              <Clock className="size-4 text-primary" />
-              History
-              {history.length > 0 && (
-                <Badge
-                  variant="secondary"
-                  className="ml-1 px-1.5 py-0 text-[11px] font-bold"
-                >
-                  {history.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+              <span>Remove Background</span>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline" className="text-xs font-medium py-1 px-2.5 bg-card/60">
@@ -437,7 +464,7 @@ export function UploadZone() {
         </div>
       </div>
 
-      {activeTab === "history" ? (
+      {activeTab === "history" && user ? (
         /* History Gallery: Shows all saved background-removed images from Local Storage */
         <HistoryGallery
           items={history}

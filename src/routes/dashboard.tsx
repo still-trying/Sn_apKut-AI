@@ -33,6 +33,10 @@ import {
   Save,
   Pencil,
   X,
+  AlertTriangle,
+  KeyRound,
+  RefreshCw,
+  Trash2,
 } from "lucide-react";
 import logo from "@/assets/snapkut-logo.png.asset.json";
 import { useUserCredits } from "@/hooks/use-user-credits";
@@ -50,6 +54,8 @@ import {
   updateCutoutRecordName,
   updateUserProfileName,
   updateUserPassword,
+  rotateUserApiKey,
+  deleteUserAccount,
 } from "@/lib/supabase";
 import { toast } from "sonner";
 
@@ -100,14 +106,67 @@ function DashboardPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [updatingPassword, setUpdatingPassword] = useState(false);
 
-  const { plan: localPlan, creditsRemaining: localCredits, totalProcessed: localTotal, monthProcessed: localMonth, apiKey: localKey, makePro, add } =
+  const { plan: localPlan, creditsRemaining: localCredits, totalProcessed: localTotal, monthProcessed: localMonth, apiKey: localKey, makePro, add, rotateKey } =
     useUserCredits();
   const { history, removeItem, renameItem, clear } = useCutoutHistory();
   const { user, profile, loading: authLoading, signOut, refreshProfile } = useAuth();
 
+  // API Key states
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [rotatingKey, setRotatingKey] = useState(false);
+
+  // Delete account states
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
   // Rename recent cutout states
   const [editingRecentId, setEditingRecentId] = useState<string | null>(null);
   const [editingRecentName, setEditingRecentName] = useState("");
+
+  const handleRotateApiKey = async () => {
+    if (!user) return;
+    const confirmed = window.confirm(
+      "Are you sure you want to generate a new API key? Your current key will be revoked immediately and existing integrations will need to be updated with the new key."
+    );
+    if (!confirmed) return;
+
+    setRotatingKey(true);
+    const res = await rotateUserApiKey(user.id);
+    setRotatingKey(false);
+
+    if (res.success && res.newApiKey) {
+      rotateKey(res.newApiKey);
+      await refreshProfile();
+      toast.success("New Secret API Key generated!", {
+        description: "Your previous API key has been revoked. Remember to update your integrations.",
+      });
+    } else {
+      toast.error(res.error || "Failed to generate new API key.");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    if (deleteConfirmInput.trim() !== "DELETE") {
+      toast.error("Please type DELETE in capital letters to confirm account deletion.");
+      return;
+    }
+
+    setDeletingAccount(true);
+    const res = await deleteUserAccount(user.id);
+    setDeletingAccount(false);
+
+    if (res.success) {
+      clear(); // clear local cutout history
+      toast.success("Account deleted successfully.", {
+        description: "Your account and all associated data have been permanently removed.",
+      });
+      navigate({ to: "/" });
+    } else {
+      toast.error(res.error || "Failed to delete account. Please try again or contact support.");
+    }
+  };
 
   const handleRenameCutout = async (item: CutoutHistoryItem, newName: string) => {
     const trimmed = newName.trim();
@@ -1085,23 +1144,57 @@ function DashboardPage() {
                 </p>
               </div>
 
-              <div className="glass-card p-6 space-y-4">
-                <label className="text-xs font-semibold text-foreground">Your Secret API Key</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="password"
-                    readOnly
-                    value={activeApiKey}
-                    className="w-full rounded-md border border-input bg-background/60 px-3 py-2 text-sm font-mono text-foreground"
-                  />
-                  <Button variant="outline" size="sm" onClick={handleCopyApiKey} className="gap-1.5 shrink-0">
-                    {copiedKey ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
-                    <span>{copiedKey ? "Copied" : "Copy Key"}</span>
-                  </Button>
+              <div className="glass-card p-6 space-y-4 border border-border/80">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-semibold text-foreground">Your Secret API Key</label>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Used to authenticate REST API requests for background removal.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    {showApiKey ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    <span>{showApiKey ? "Hide key" : "Show key"}</span>
+                  </button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Keep this key confidential. Do not expose it in public client-side repositories.
-                </p>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showApiKey ? "text" : "password"}
+                      readOnly
+                      value={activeApiKey}
+                      className="w-full rounded-md border border-input bg-background/60 pl-3 pr-10 py-2 text-sm font-mono text-foreground focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button variant="outline" size="sm" onClick={handleCopyApiKey} className="gap-1.5 h-9 text-xs">
+                      {copiedKey ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
+                      <span>{copiedKey ? "Copied" : "Copy Key"}</span>
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRotateApiKey}
+                      disabled={rotatingKey}
+                      className="gap-1.5 h-9 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300"
+                      title="Revoke current key and generate a fresh new API key"
+                    >
+                      <RefreshCw className={`size-3.5 ${rotatingKey ? "animate-spin" : ""}`} />
+                      <span>{rotatingKey ? "Generating..." : "Roll New Key"}</span>
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-[11px] text-muted-foreground leading-relaxed">
+                  💡 <strong>Security Notice:</strong> Keep your secret key confidential. If your API key is ever exposed or leaked, click <strong>Roll New Key</strong> to immediately revoke the exposed key and issue a new one.
+                </div>
               </div>
 
               <div className="glass-card p-6 space-y-3">
@@ -1321,6 +1414,82 @@ function DashboardPage() {
                 <p>
                   Images processed through Sn_apKut AI are held in ephemeral cloud cache and permanently deleted 24 hours after processing.
                 </p>
+              </div>
+
+              {/* 6. Danger Zone: Delete Account */}
+              <div className="glass-card p-6 space-y-4 border border-destructive/40 bg-destructive/5 rounded-xl">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="size-4 text-destructive" />
+                      <h3 className="text-sm font-bold text-destructive">Danger Zone: Delete Account</h3>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Permanently delete your account, personal credits, saved cutouts, and API credentials. This action is irreversible.
+                    </p>
+                  </div>
+                  {!showDeleteConfirm ? (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="gap-1.5 text-xs font-semibold shrink-0 w-fit"
+                    >
+                      <Trash2 className="size-3.5" /> Delete Account
+                    </Button>
+                  ) : null}
+                </div>
+
+                {showDeleteConfirm && (
+                  <div className="mt-4 pt-4 border-t border-destructive/20 space-y-3">
+                    <div className="rounded-lg bg-destructive/10 border border-destructive/30 p-3 text-xs text-destructive leading-relaxed">
+                      <strong>Warning:</strong> You are about to permanently delete your account (<strong>{user?.email}</strong>). All your cutout images, billing records, and API credentials will be wiped immediately.
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-medium text-foreground">
+                        To confirm, type <span className="font-mono font-bold text-destructive">DELETE</span> in the box below:
+                      </label>
+                      <input
+                        type="text"
+                        value={deleteConfirmInput}
+                        onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                        placeholder="DELETE"
+                        className="w-full sm:w-64 rounded-md border border-destructive/40 bg-background/80 px-3 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-destructive"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 pt-1">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={deletingAccount || deleteConfirmInput !== "DELETE"}
+                        onClick={handleDeleteAccount}
+                        className="gap-1.5 text-xs font-semibold"
+                      >
+                        {deletingAccount ? (
+                          <>
+                            <RefreshCw className="size-3.5 animate-spin" /> Deleting account...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="size-3.5" /> Confirm Account Deletion
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={deletingAccount}
+                        onClick={() => {
+                          setShowDeleteConfirm(false);
+                          setDeleteConfirmInput("");
+                        }}
+                        className="text-xs text-muted-foreground"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

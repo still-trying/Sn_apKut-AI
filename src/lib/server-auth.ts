@@ -67,3 +67,60 @@ export const registerUserServerFn = createServerFn({ method: "POST" })
       };
     }
   });
+
+export interface DeleteAccountInput {
+  userId: string;
+}
+
+export interface DeleteAccountResult {
+  success: boolean;
+  error?: string | undefined;
+}
+
+export const deleteAccountServerFn = createServerFn({ method: "POST" })
+  .validator((data: DeleteAccountInput) => data)
+  .handler(async ({ data }): Promise<DeleteAccountResult> => {
+    try {
+      const supabaseUrl =
+        process.env["SUPABASE_URL"] ||
+        process.env["VITE_SUPABASE_URL"] ||
+        "https://ugagaidwiadaluisxexo.supabase.co";
+
+      const serviceRoleKey =
+        process.env["SUPABASE_SERVICE_ROLE_KEY"] ||
+        process.env["VITE_SUPABASE_SERVICE_ROLE_KEY"] ||
+        "";
+
+      if (!serviceRoleKey) {
+        return {
+          success: false,
+          error: "SUPABASE_SERVICE_ROLE_KEY is not configured on server.",
+        };
+      }
+
+      const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      });
+
+      // 1. Delete user data across tables
+      await adminClient.from("cutout_history").delete().eq("user_id", data.userId);
+      await adminClient.from("payment_records").delete().eq("user_id", data.userId);
+      await adminClient.from("profiles").delete().eq("id", data.userId);
+
+      // 2. Delete user auth account
+      const { error } = await adminClient.auth.admin.deleteUser(data.userId);
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  });

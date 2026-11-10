@@ -6,6 +6,7 @@ import {
   addCredits,
   upgradeToPro,
   canProcessImage,
+  rotateLocalApiKey,
   CREDITS_EVENT,
 } from "@/lib/credits-storage";
 
@@ -42,6 +43,10 @@ export function useUserCredits() {
     return upgradeToPro();
   }, []);
 
+  const rotateKey = useCallback((newKey?: string) => {
+    return rotateLocalApiKey(newKey);
+  }, []);
+
   const hasCredits = useCallback(() => {
     return canProcessImage();
   }, []);
@@ -58,6 +63,7 @@ export function useUserCredits() {
     deduct,
     add,
     makePro,
+    rotateKey,
   };
 }
 

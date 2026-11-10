@@ -65,6 +65,13 @@ export function saveUserCredits(data: UserCreditsData): void {
   }
 }
 
+export function rotateLocalApiKey(newKey?: string): string {
+  const data = getUserCredits();
+  data.apiKey = newKey || ("sk_live_" + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12));
+  saveUserCredits(data);
+  return data.apiKey;
+}
+
 // Check if user has sufficient credits or is on Pro
 export function canProcessImage(): boolean {
   const current = getUserCredits();

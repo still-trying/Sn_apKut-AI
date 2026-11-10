@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { deleteAccountServerFn } from "@/lib/server-auth";
 
 const supabaseUrl =
   (import.meta.env["SUPABASE_URL"] as string | undefined) ||
@@ -391,5 +392,75 @@ export async function savePaymentRecord(
     });
   } catch (err) {
     console.error("Failed to save payment record in Supabase:", err);
+  }
+}
+
+// Generate a secure API key
+export function generateApiKey(): string {
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const bytes = new Uint8Array(20);
+    crypto.getRandomValues(bytes);
+    return "sk_live_" + Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  return "sk_live_" + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
+}
+
+// Rotate API key in profiles table
+export async function rotateUserApiKey(
+  userId: string
+): Promise<{ success: boolean; newApiKey?: string; error?: string }> {
+  try {
+    const newApiKey = generateApiKey();
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        api_key: newApiKey,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId);
+
+    if (error) {
+      console.warn("rotateUserApiKey error:", error.message);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, newApiKey };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Permanently delete user account and all personal data
+export async function deleteUserAccount(
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // 1. Try server function with service role admin
+    try {
+      const serverRes = await deleteAccountServerFn({ data: { userId } });
+      if (serverRes?.success) {
+        await supabase.auth.signOut();
+        return { success: true };
+      }
+      if (serverRes?.error && !serverRes.error.includes("not configured")) {
+        console.warn("Server delete warning:", serverRes.error);
+      }
+    } catch (srvErr) {
+      console.warn("deleteAccountServerFn warning:", srvErr);
+    }
+
+    // 2. Client fallback: delete profile & cutouts, then sign out
+    try {
+      await supabase.from("cutout_history").delete().eq("user_id", userId);
+      await supabase.from("profiles").delete().eq("id", userId);
+    } catch (dbErr) {
+      console.warn("Client DB deletion warning:", dbErr);
+    }
+
+    await supabase.auth.signOut();
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
 }

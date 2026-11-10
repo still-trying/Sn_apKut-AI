@@ -22,9 +22,10 @@ import { useCutoutHistory } from "@/hooks/use-cutout-history";
 import { HistoryGallery } from "@/components/site/HistoryGallery";
 import { useUserCredits } from "@/hooks/use-user-credits";
 import { canProcessImage, deductCreditOnSuccess } from "@/lib/credits-storage";
-import { openRazorpayCheckout } from "@/lib/razorpay";
+import { openRazorpayCheckout, verifyAndApplyPayment } from "@/lib/razorpay";
 import { useAuth } from "@/contexts/auth-context";
 import {
+  supabase,
   deductUserCredit,
   saveCutoutRecord,
   upgradeProfileToPro,
@@ -34,7 +35,6 @@ import { toast } from "sonner";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED = ["image/jpeg", "image/png", "image/webp"];
-const WEBHOOK_URL = "http://localhost:5678/webhook/remove bkgrnd";
 
 type State = "idle" | "ready" | "processing" | "done";
 
@@ -139,17 +139,30 @@ export function UploadZone() {
         action: {
           label: "Upgrade to Pro",
           onClick: () => {
+            if (!user) {
+              toast.info("Please sign in or create an account first to upgrade to Pro.");
+              navigate({ to: "/auth", search: { redirect: "/" } });
+              return;
+            }
             openRazorpayCheckout({
               planName: "Pro",
               amountInRupees: 799,
               description: "Unlimited high-resolution cutouts",
-              onSuccess: async () => {
-                if (user) {
-                  await upgradeProfileToPro(user.id);
+              userEmail: user?.email ?? undefined,
+              userName: profile?.full_name ?? undefined,
+              onSuccess: async (res) => {
+                const verifyRes = await verifyAndApplyPayment({
+                  response: res,
+                  planName: "Pro",
+                  amountInRupees: 799,
+                });
+                if (verifyRes.success) {
                   await refreshProfile();
+                  makePro();
+                  toast.success("Account upgraded to Pro! Unlimited cutouts enabled.");
+                } else {
+                  toast.error(verifyRes.error || "Payment verification failed.");
                 }
-                makePro();
-                toast.success("Account upgraded to Pro! Unlimited cutouts enabled.");
               },
             });
           },
@@ -163,85 +176,49 @@ export function UploadZone() {
     setState("processing");
 
     try {
-      // Send the image in binary format (ArrayBuffer) to the webhook
+      // Send the image to our secure server API endpoint /api/v1/remove-bg
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+
+      if (!token) {
+        throw new Error("Authentication session expired. Please sign in again.");
+      }
+
       const binaryData = await sourceFile.arrayBuffer();
 
-      const response = await fetch(encodeURI(WEBHOOK_URL), {
+      const response = await fetch("/api/v1/remove-bg", {
         method: "POST",
         headers: {
+          Authorization: `Bearer ${token}`,
           "Content-Type": sourceFile.type || "application/octet-stream",
         },
         body: binaryData,
       });
 
       if (!response.ok) {
-        const errorText = await response.text().catch(() => "");
+        let errJson: { error?: string; details?: string } = {};
+        try {
+          errJson = (await response.json()) as { error?: string; details?: string };
+        } catch {
+          // Ignore parse error
+        }
         throw new Error(
-          `Webhook returned status ${response.status}${errorText ? `: ${errorText}` : ""}`,
+          errJson.error || errJson.details || `Processing failed with status ${response.status}.`
         );
       }
 
-      const responseText = await response.text();
-      let data: unknown;
-      try {
-        data = JSON.parse(responseText);
-      } catch {
-        if (responseText.startsWith("http://") || responseText.startsWith("https://")) {
-          data = { url: responseText.trim() };
-        } else {
-          throw new Error("Invalid response from processing service. Expected JSON format.");
-        }
+      const resData = (await response.json()) as {
+        success: boolean;
+        url: string;
+        creditsRemaining: number | string;
+        plan: string;
+      };
+
+      if (!resData.url) {
+        throw new Error('The processing service returned a response without a valid "url" field.');
       }
 
-      // Extract the url property from the JSON response
-      // e.g. { "url": "http://res.cloudinary.com/..." }
-      let extractedUrl: string | null = null;
-
-      if (Array.isArray(data) && data.length > 0) {
-        const item: unknown = data[0];
-        if (typeof item === "string" && (item.startsWith("http://") || item.startsWith("https://"))) {
-          extractedUrl = item;
-        } else if (item && typeof item === "object") {
-          const itemObj = item as Record<string, unknown>;
-          const candidate = itemObj["url"];
-          if (typeof candidate === "string") {
-            extractedUrl = candidate;
-          }
-        }
-      } else if (data && typeof data === "object") {
-        const obj = data as Record<string, unknown>;
-        const directUrl = obj["url"];
-        if (typeof directUrl === "string") {
-          extractedUrl = directUrl;
-        } else {
-          const nestedData = obj["data"];
-          if (nestedData && typeof nestedData === "object") {
-            const nestedUrl = (nestedData as Record<string, unknown>)["url"];
-            if (typeof nestedUrl === "string") {
-              extractedUrl = nestedUrl;
-            }
-          } else {
-            const nestedResult = obj["result"];
-            if (nestedResult && typeof nestedResult === "object") {
-              const nestedUrl = (nestedResult as Record<string, unknown>)["url"];
-              if (typeof nestedUrl === "string") {
-                extractedUrl = nestedUrl;
-              }
-            }
-          }
-        }
-      }
-
-      if (!extractedUrl) {
-        throw new Error('The processing service returned JSON without a valid "url" field.');
-      }
-
-      const outputUrl = new URL(extractedUrl);
-      if (outputUrl.protocol !== "http:" && outputUrl.protocol !== "https:") {
-        throw new Error("The processing service returned an unsupported image URL scheme.");
-      }
-
-      // If page is on HTTPS and image is external HTTP (e.g. Cloudinary), upgrade to HTTPS to avoid mixed content
+      const outputUrl = new URL(resData.url);
       if (
         typeof window !== "undefined" &&
         window.location.protocol === "https:" &&
@@ -256,67 +233,30 @@ export function UploadZone() {
       setResultUrl(finalUrl);
       setState("done");
 
-      // Deduct credit in Supabase database & locally
-      let currentRemaining = effectiveCredits - 1;
-      let currentPlan = effectivePlan;
-
-      if (user) {
-        try {
-          const creditRes = await deductUserCredit(user.id);
-          currentRemaining = creditRes.remaining;
-          currentPlan = creditRes.plan;
-
-          // Save to Supabase cutout_history
-          await saveCutoutRecord(user.id, {
-            imageName: sourceFile.name || "image.png",
-            imageSize: sourceFile.size,
-            resultUrl: finalUrl,
-            rawResponse:
-              typeof data === "object" && data !== null
-                ? (data as Record<string, unknown>)
-                : undefined,
-          });
-
-          await refreshProfile();
-        } catch (dbErr) {
-          console.error("Database save error:", dbErr);
-        }
-      }
-
-      // Also deduct locally for instant UI update
+      // Update local storage credit cache & refresh Supabase profile
       deductCreditOnSuccess();
+      await refreshProfile();
 
-      // Save to Local Storage cache only if user is signed in
-      if (user) {
-        addItem({
-          name: sourceFile.name || "image.png",
-          size: sourceFile.size,
-          resultUrl: finalUrl,
-          rawResponse:
-            typeof data === "object" && data !== null
-              ? (data as Record<string, unknown>)
-              : undefined,
-        });
-      }
+      // Save to local storage cache for the gallery
+      addItem({
+        name: sourceFile.name || "image.png",
+        size: sourceFile.size,
+        resultUrl: finalUrl,
+        rawResponse: resData as Record<string, unknown>,
+      });
 
-      if (currentPlan === "pro") {
+      if (resData.plan === "pro") {
         toast.success("Background removed! (Pro Unlimited)");
       } else {
-        toast.success(`Background removed! 1 credit used (${currentRemaining} remaining today).`);
+        toast.success(`Background removed! 1 credit used (${resData.creditsRemaining} remaining today).`);
       }
     } catch (requestError) {
       setState("ready");
-      if (requestError instanceof TypeError && requestError.message.toLowerCase().includes("fetch")) {
-        setError(
-          `Could not connect to webhook at ${WEBHOOK_URL}. Please ensure your n8n workflow is active, listening on port 5678, and permits requests.`,
-        );
-      } else {
-        setError(
-          requestError instanceof Error
-            ? `Background removal failed: ${requestError.message}`
-            : "Background removal failed. Check that the processing service is available.",
-        );
-      }
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Background removal failed. Please check your network and try again."
+      );
     }
   };
 

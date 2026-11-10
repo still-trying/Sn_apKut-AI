@@ -42,7 +42,7 @@ import logo from "@/assets/snapkut-logo.png.asset.json";
 import { useUserCredits } from "@/hooks/use-user-credits";
 import { useCutoutHistory } from "@/hooks/use-cutout-history";
 import { CutoutHistoryItem } from "@/lib/history-storage";
-import { openRazorpayCheckout } from "@/lib/razorpay";
+import { openRazorpayCheckout, verifyAndApplyPayment } from "@/lib/razorpay";
 import { UploadZone } from "@/components/site/UploadZone";
 import { HistoryGallery } from "@/components/site/HistoryGallery";
 import { useAuth } from "@/contexts/auth-context";
@@ -237,7 +237,7 @@ function DashboardPage() {
   const activeCredits = profile?.credits_remaining ?? localCredits;
   const activeTotal = profile?.total_processed ?? localTotal;
   const activeMonth = profile?.month_processed ?? localMonth;
-  const activeApiKey = profile?.api_key || localKey;
+  const activeApiKey = profile?.api_key || localKey || "";
 
   // Combine cloud & local cutout history
   const allCutouts = useMemo(() => {
@@ -332,23 +332,26 @@ function DashboardPage() {
       planName: "Pro",
       amountInRupees: 799,
       description: "Unlimited images & priority processing",
+      userEmail: user?.email ?? undefined,
+      userName: profile?.full_name ?? undefined,
       onSuccess: async (res) => {
         try {
-          if (user) {
-            await upgradeProfileToPro(user.id);
-            await savePaymentRecord(user.id, {
-              razorpayPaymentId: res.razorpay_payment_id,
-              razorpayOrderId: res.razorpay_order_id,
-              razorpaySignature: res.razorpay_signature,
-              planName: "Pro",
-              amountInRupees: 799,
-            });
-            await refreshProfile();
+          const verifyResult = await verifyAndApplyPayment({
+            response: res,
+            planName: "Pro",
+            amountInRupees: 799,
+          });
+
+          if (!verifyResult.success) {
+            toast.error(verifyResult.error || "Payment verification failed. Please contact support.");
+            return;
           }
-          makePro();
+
+          await refreshProfile();
           toast.success("Account upgraded to Pro! Unlimited cutouts enabled.");
         } catch (err) {
           console.error("Upgrade error:", err);
+          toast.error("Failed to apply upgrade. Please refresh or contact support.");
         }
       },
     });
@@ -359,23 +362,26 @@ function DashboardPage() {
       planName: "Credit packs",
       amountInRupees: 299,
       description: "250 Image Credits Bundle",
+      userEmail: user?.email ?? undefined,
+      userName: profile?.full_name ?? undefined,
       onSuccess: async (res) => {
         try {
-          if (user) {
-            await addCreditsToProfile(user.id, 250);
-            await savePaymentRecord(user.id, {
-              razorpayPaymentId: res.razorpay_payment_id,
-              razorpayOrderId: res.razorpay_order_id,
-              razorpaySignature: res.razorpay_signature,
-              planName: "Credit packs",
-              amountInRupees: 299,
-            });
-            await refreshProfile();
+          const verifyResult = await verifyAndApplyPayment({
+            response: res,
+            planName: "Credit packs",
+            amountInRupees: 299,
+          });
+
+          if (!verifyResult.success) {
+            toast.error(verifyResult.error || "Payment verification failed. Please contact support.");
+            return;
           }
-          add(250);
+
+          await refreshProfile();
           toast.success("250 Credits added to your balance!");
         } catch (err) {
           console.error("Buy credits error:", err);
+          toast.error("Failed to add credits. Please refresh or contact support.");
         }
       },
     });
@@ -1197,14 +1203,57 @@ function DashboardPage() {
                 </div>
               </div>
 
-              <div className="glass-card p-6 space-y-3">
-                <h3 className="text-sm font-bold">Quick cURL Example</h3>
-                <pre className="overflow-x-auto rounded-lg bg-black/60 p-4 text-xs font-mono text-green-400">
-{`curl -X POST "http://localhost:5678/webhook/remove%20bkgrnd" \\
+              <div className="glass-card p-6 space-y-4">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">API Integration Examples</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Use your secret API key to automate background removals in batch scripts or backend services.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">cURL Request</span>
+                    <span className="font-mono text-[11px] text-primary">POST /api/v1/remove-bg</span>
+                  </div>
+                  <pre className="overflow-x-auto rounded-lg bg-black/70 p-4 text-xs font-mono text-green-400 border border-white/5">
+{`curl -X POST "${typeof window !== "undefined" ? window.location.origin : "https://sn_ap_kut_ai.vercel.app"}/api/v1/remove-bg" \\
   -H "Authorization: Bearer ${activeApiKey}" \\
   -H "Content-Type: image/png" \\
   --data-binary "@photo.png"`}
-                </pre>
+                  </pre>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">Python (requests)</span>
+                  </div>
+                  <pre className="overflow-x-auto rounded-lg bg-black/70 p-4 text-xs font-mono text-blue-300 border border-white/5">
+{`import requests
+
+url = "${typeof window !== "undefined" ? window.location.origin : "https://sn_ap_kut_ai.vercel.app"}/api/v1/remove-bg"
+headers = {"Authorization": "Bearer ${activeApiKey}"}
+
+with open("photo.png", "rb") as f:
+    response = requests.post(url, headers=headers, files={"image": f})
+
+data = response.json()
+print("Cutout URL:", data.get("url"))`}
+                  </pre>
+                </div>
+
+                <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground space-y-1.5">
+                  <p className="font-semibold text-foreground text-[11px]">Expected JSON Response:</p>
+                  <pre className="font-mono text-[11px] text-muted-foreground bg-black/40 p-2.5 rounded border border-white/5 overflow-x-auto">
+{`{
+  "success": true,
+  "url": "https://.../cutout.png",
+  "creditsRemaining": 4,
+  "plan": "free",
+  "imageName": "photo.png"
+}`}
+                  </pre>
+                </div>
               </div>
             </div>
           )}

@@ -16,7 +16,7 @@ const DEFAULT_CREDITS: UserCreditsData = {
   totalProcessed: 0,
   monthProcessed: 0,
   lastResetDate: new Date().toISOString().slice(0, 10),
-  apiKey: "sk_live_" + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 10),
+  apiKey: "",
 };
 
 function getTodayString(): string {
@@ -43,10 +43,8 @@ export function getUserCredits(): UserCreditsData {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
 
-    if (!data.apiKey) {
-      data.apiKey = "sk_live_" + Math.random().toString(36).slice(2, 12);
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    }
+    // Do not read or mirror secret api_key from localStorage
+    data.apiKey = "";
 
     return data;
   } catch (err) {
@@ -58,7 +56,15 @@ export function getUserCredits(): UserCreditsData {
 export function saveUserCredits(data: UserCreditsData): void {
   if (typeof window === "undefined" || !window.localStorage) return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    // Security: Omit API key from browser localStorage to avoid XSS key harvesting
+    const safePayload: Record<string, unknown> = {
+      plan: data.plan,
+      creditsRemaining: data.creditsRemaining,
+      totalProcessed: data.totalProcessed,
+      monthProcessed: data.monthProcessed,
+      lastResetDate: data.lastResetDate,
+    };
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(safePayload));
     window.dispatchEvent(new CustomEvent(CREDITS_EVENT, { detail: data }));
   } catch (err) {
     console.error("Failed to save user credits:", err);
@@ -66,10 +72,7 @@ export function saveUserCredits(data: UserCreditsData): void {
 }
 
 export function rotateLocalApiKey(newKey?: string): string {
-  const data = getUserCredits();
-  data.apiKey = newKey || ("sk_live_" + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12));
-  saveUserCredits(data);
-  return data.apiKey;
+  return newKey || "";
 }
 
 // Check if user has sufficient credits or is on Pro

@@ -2,22 +2,32 @@ import { createClient } from "@supabase/supabase-js";
 import { deleteAccountServerFn } from "@/lib/server-auth";
 
 const supabaseUrl =
-  (import.meta.env["SUPABASE_URL"] as string | undefined) ||
   (import.meta.env["VITE_SUPABASE_URL"] as string | undefined) ||
-  "https://ugagaidwiadaluisxexo.supabase.co";
+  (import.meta.env["SUPABASE_URL"] as string | undefined) ||
+  "";
 
 const supabaseAnonKey =
-  (import.meta.env["SUPABASE_ANON_KEY"] as string | undefined) ||
   (import.meta.env["VITE_SUPABASE_ANON_KEY"] as string | undefined) ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVnYWdhaWR3aWFkYWx1aXN4ZXhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQxMjA0MjYsImV4cCI6MjEwOTY5NjQyNn0.M-m_XeYEwmqJD30HxdW1PAMEhhRVMTUmWkUYAvxku8w";
+  (import.meta.env["SUPABASE_ANON_KEY"] as string | undefined) ||
+  "";
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-});
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn(
+    "[Sn_apKut Security] Missing Supabase environment variables (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY). Please ensure they are configured in your environment."
+  );
+}
+
+export const supabase = createClient(
+  supabaseUrl || "https://placeholder.supabase.co",
+  supabaseAnonKey || "placeholder-key",
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  }
+);
 
 export interface UserProfile {
   id: string;
@@ -436,26 +446,29 @@ export async function deleteUserAccount(
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // 1. Try server function with service role admin
-    try {
-      const serverRes = await deleteAccountServerFn({ data: { userId } });
-      if (serverRes?.success) {
-        await supabase.auth.signOut();
-        return { success: true };
-      }
-      if (serverRes?.error && !serverRes.error.includes("not configured")) {
-        console.warn("Server delete warning:", serverRes.error);
-      }
-    } catch (srvErr) {
-      console.warn("deleteAccountServerFn warning:", srvErr);
+    // 1. Retrieve the caller's active auth session token
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+
+    if (!accessToken) {
+      return {
+        success: false,
+        error: "Authentication required. Please sign in again to verify your account deletion.",
+      };
     }
 
-    // 2. Client fallback: delete profile & cutouts, then sign out
-    try {
-      await supabase.from("cutout_history").delete().eq("user_id", userId);
-      await supabase.from("profiles").delete().eq("id", userId);
-    } catch (dbErr) {
-      console.warn("Client DB deletion warning:", dbErr);
+    // 2. Call the server function with verified access token
+    const serverRes = await deleteAccountServerFn({
+      data: { userId, accessToken },
+    });
+
+    if (serverRes?.success) {
+      await supabase.auth.signOut();
+      return { success: true };
+    }
+
+    if (serverRes?.error) {
+      return { success: false, error: serverRes.error };
     }
 
     await supabase.auth.signOut();

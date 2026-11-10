@@ -11,7 +11,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Zap, ShieldCheck, Layers, Code2, Timer, Wand2, Check } from "lucide-react";
-import { openRazorpayCheckout } from "@/lib/razorpay";
+import { openRazorpayCheckout, verifyAndApplyPayment } from "@/lib/razorpay";
 import { addCredits, upgradeToPro } from "@/lib/credits-storage";
 import { useAuth } from "@/contexts/auth-context";
 import {
@@ -287,33 +287,32 @@ function Landing() {
                     }
 
                     openRazorpayCheckout({
-                      planName: p.name,
+                      planName: p.name as "Pro" | "Credit packs",
                       amountInRupees: p.amount,
                       description: p.desc,
+                      userEmail: user?.email ?? undefined,
                       onSuccess: async (res) => {
                         try {
-                          if (p.name === "Pro") {
-                            await upgradeProfileToPro(user.id);
-                            upgradeToPro();
-                            toast.success("Account upgraded to Pro! Unlimited background removals unlocked.");
-                          } else if (p.name === "Credit packs") {
-                            await addCreditsToProfile(user.id, 250);
-                            addCredits(250);
-                            toast.success("250 Credits successfully added to your account!");
-                          }
-
-                          // Save transaction record to Supabase
-                          await savePaymentRecord(user.id, {
-                            razorpayPaymentId: res.razorpay_payment_id,
-                            razorpayOrderId: res.razorpay_order_id,
-                            razorpaySignature: res.razorpay_signature,
-                            planName: p.name,
+                          const verifyResult = await verifyAndApplyPayment({
+                            response: res,
+                            planName: p.name as "Pro" | "Credit packs",
                             amountInRupees: p.amount,
                           });
 
+                          if (!verifyResult.success) {
+                            toast.error(verifyResult.error || "Payment verification failed.");
+                            return;
+                          }
+
                           await refreshProfile();
+                          toast.success(
+                            p.name === "Pro"
+                              ? "Account upgraded to Pro! Unlimited background removals unlocked."
+                              : "250 Credits successfully added to your account!"
+                          );
                         } catch (err) {
                           console.error("Failed to update profile after payment:", err);
+                          toast.error("Failed to verify transaction. Please contact support.");
                         }
                       },
                     });

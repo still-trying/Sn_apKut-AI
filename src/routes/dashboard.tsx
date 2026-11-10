@@ -31,6 +31,8 @@ import {
   Eye,
   EyeOff,
   Save,
+  Pencil,
+  X,
 } from "lucide-react";
 import logo from "@/assets/snapkut-logo.png.asset.json";
 import { useUserCredits } from "@/hooks/use-user-credits";
@@ -45,6 +47,7 @@ import {
   addCreditsToProfile,
   savePaymentRecord,
   fetchUserCutouts,
+  updateCutoutRecordName,
   updateUserProfileName,
   updateUserPassword,
 } from "@/lib/supabase";
@@ -99,8 +102,43 @@ function DashboardPage() {
 
   const { plan: localPlan, creditsRemaining: localCredits, totalProcessed: localTotal, monthProcessed: localMonth, apiKey: localKey, makePro, add } =
     useUserCredits();
-  const { history, removeItem, clear } = useCutoutHistory();
+  const { history, removeItem, renameItem, clear } = useCutoutHistory();
   const { user, profile, loading: authLoading, signOut, refreshProfile } = useAuth();
+
+  // Rename recent cutout states
+  const [editingRecentId, setEditingRecentId] = useState<string | null>(null);
+  const [editingRecentName, setEditingRecentName] = useState("");
+
+  const handleRenameCutout = async (item: CutoutHistoryItem, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === item.name) {
+      setEditingRecentId(null);
+      return;
+    }
+
+    // 1. Update local storage history
+    renameItem(item.id, trimmed);
+    if (item.resultUrl) {
+      renameItem(item.resultUrl, trimmed);
+    }
+
+    // 2. Update cloudCutouts state
+    setCloudCutouts((prev) =>
+      prev.map((c) =>
+        c.id === item.id || (c.resultUrl && c.resultUrl === item.resultUrl)
+          ? { ...c, name: trimmed }
+          : c
+      )
+    );
+
+    // 3. Update Supabase cutout record if user is logged in
+    if (user) {
+      await updateCutoutRecordName(user.id, item.id || item.resultUrl, trimmed);
+    }
+
+    toast.success(`Image renamed to "${trimmed}"`);
+    setEditingRecentId(null);
+  };
 
   // Route protection: redirect to /auth if not signed in
   useEffect(() => {
@@ -875,9 +913,62 @@ function DashboardPage() {
                               }}
                             />
                           </div>
-                          <span className="truncate text-sm font-medium text-foreground">
-                            {item.name || "cutout.png"}
-                          </span>
+                          {editingRecentId === item.id ? (
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                              <input
+                                type="text"
+                                value={editingRecentName}
+                                onChange={(e) => setEditingRecentName(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") handleRenameCutout(item, editingRecentName);
+                                  if (e.key === "Escape") setEditingRecentId(null);
+                                }}
+                                autoFocus
+                                className="w-full rounded border border-input bg-background/90 px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                                placeholder="Image name"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleRenameCutout(item, editingRecentName)}
+                                className="p-1 text-green-500 hover:text-green-400 cursor-pointer shrink-0"
+                                title="Save name"
+                              >
+                                <Check className="size-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingRecentId(null)}
+                                className="p-1 text-muted-foreground hover:text-foreground cursor-pointer shrink-0"
+                                title="Cancel"
+                              >
+                                <X className="size-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 min-w-0 group/rename">
+                              <span
+                                className="truncate text-sm font-medium text-foreground cursor-pointer hover:underline"
+                                title={`Click to rename "${item.name}"`}
+                                onClick={() => {
+                                  setEditingRecentId(item.id);
+                                  setEditingRecentName(item.name || "cutout.png");
+                                }}
+                              >
+                                {item.name || "cutout.png"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingRecentId(item.id);
+                                  setEditingRecentName(item.name || "cutout.png");
+                                }}
+                                className="text-muted-foreground hover:text-foreground opacity-60 group-hover/rename:opacity-100 transition-opacity p-0.5 cursor-pointer shrink-0"
+                                title="Rename image"
+                              >
+                                <Pencil className="size-3" />
+                              </button>
+                            </div>
+                          )}
                         </div>
 
                         <div className="col-span-3 sm:col-span-3 text-xs text-muted-foreground">
@@ -925,8 +1016,15 @@ function DashboardPage() {
           {activeTab === "history" && (
             <div className="space-y-6">
               <HistoryGallery
-                items={history}
-                onDeleteItem={removeItem}
+                items={allCutouts}
+                onDeleteItem={(id) => {
+                  removeItem(id);
+                  setCloudCutouts((prev) => prev.filter((c) => c.id !== id));
+                }}
+                onRenameItem={(id, newName) => {
+                  const item = allCutouts.find((c) => c.id === id);
+                  if (item) handleRenameCutout(item, newName);
+                }}
                 onClearAll={clear}
                 onGoToUpload={() => setActiveTab("upload")}
               />

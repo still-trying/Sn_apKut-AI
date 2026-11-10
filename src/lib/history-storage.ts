@@ -74,6 +74,30 @@ export function deleteHistoryItem(id: string): CutoutHistoryItem[] {
   }
 }
 
+export function updateHistoryItemName(
+  idOrUrl: string,
+  newName: string,
+): CutoutHistoryItem[] {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return [];
+  }
+  try {
+    const current = getStoredHistory();
+    const updated = current.map((item) => {
+      if (item.id === idOrUrl || item.resultUrl === idOrUrl) {
+        return { ...item, name: newName.trim() };
+      }
+      return item;
+    });
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: updated }));
+    return updated;
+  } catch (err) {
+    console.error("Failed to update history item name in localStorage:", err);
+    return getStoredHistory();
+  }
+}
+
 export function clearAllHistory(): void {
   if (typeof window === "undefined" || !window.localStorage) {
     return;

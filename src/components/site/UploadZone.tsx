@@ -24,7 +24,12 @@ import { useUserCredits } from "@/hooks/use-user-credits";
 import { canProcessImage, deductCreditOnSuccess } from "@/lib/credits-storage";
 import { openRazorpayCheckout } from "@/lib/razorpay";
 import { useAuth } from "@/contexts/auth-context";
-import { deductUserCredit, saveCutoutRecord, upgradeProfileToPro } from "@/lib/supabase";
+import {
+  deductUserCredit,
+  saveCutoutRecord,
+  upgradeProfileToPro,
+  updateCutoutRecordName,
+} from "@/lib/supabase";
 import { toast } from "sonner";
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -51,7 +56,7 @@ export function UploadZone() {
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
 
-  const { history, addItem, removeItem, clear } = useCutoutHistory();
+  const { history, addItem, removeItem, renameItem, clear } = useCutoutHistory();
   const { plan: localPlan, creditsRemaining: localCredits, makePro } = useUserCredits();
   const { user, profile, refreshProfile } = useAuth();
 
@@ -469,6 +474,16 @@ export function UploadZone() {
         <HistoryGallery
           items={history}
           onDeleteItem={removeItem}
+          onRenameItem={(id, newName) => {
+            renameItem(id, newName);
+            if (user) {
+              const item = history.find((h) => h.id === id);
+              if (item) {
+                updateCutoutRecordName(user.id, item.id || item.resultUrl, newName);
+              }
+            }
+            toast.success(`Image renamed to "${newName}"`);
+          }}
           onClearAll={clear}
           onSelectForPreview={(item) => {
             setResultUrl(item.resultUrl);

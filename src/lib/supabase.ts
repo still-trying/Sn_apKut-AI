@@ -241,6 +241,37 @@ export async function fetchUserCutouts(userId: string): Promise<CutoutHistoryRow
   }
 }
 
+// Update cutout image name in Supabase
+export async function updateCutoutRecordName(
+  userId: string,
+  idOrUrl: string,
+  newName: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    let query = supabase
+      .from("cutout_history")
+      .update({ image_name: newName.trim() })
+      .eq("user_id", userId);
+
+    if (idOrUrl.startsWith("http")) {
+      query = query.eq("result_url", idOrUrl);
+    } else {
+      query = query.eq("id", idOrUrl);
+    }
+
+    const { error } = await query;
+    if (error) {
+      console.warn("updateCutoutRecordName error:", error.message);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("updateCutoutRecordName failed:", err);
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 // Update user display name in both auth metadata and profiles table
 export async function updateUserProfileName(
   userId: string,

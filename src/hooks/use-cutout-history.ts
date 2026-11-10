@@ -4,6 +4,7 @@ import {
   getStoredHistory,
   saveHistoryItem,
   deleteHistoryItem,
+  updateHistoryItemName,
   clearAllHistory,
   EVENT_NAME,
 } from "@/lib/history-storage";
@@ -39,6 +40,11 @@ export function useCutoutHistory() {
     setHistory(updated);
   }, []);
 
+  const renameItem = useCallback((idOrUrl: string, newName: string) => {
+    const updated = updateHistoryItemName(idOrUrl, newName);
+    setHistory(updated);
+  }, []);
+
   const clear = useCallback(() => {
     clearAllHistory();
     setHistory([]);
@@ -49,6 +55,7 @@ export function useCutoutHistory() {
     isLoaded,
     addItem,
     removeItem,
+    renameItem,
     clear,
   };
 }

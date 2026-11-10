@@ -10,6 +10,8 @@ import {
   Clock,
   Sparkles,
   FileImage,
+  Pencil,
+  X,
 } from "lucide-react";
 import { CutoutHistoryItem } from "@/lib/history-storage";
 import { toast } from "sonner";
@@ -18,6 +20,7 @@ interface HistoryGalleryProps {
   items: CutoutHistoryItem[];
   onDeleteItem: (id: string) => void;
   onClearAll: () => void;
+  onRenameItem?: (id: string, newName: string) => void;
   onSelectForPreview?: (item: CutoutHistoryItem) => void;
   onGoToUpload?: () => void;
 }
@@ -44,11 +47,26 @@ export function HistoryGallery({
   items,
   onDeleteItem,
   onClearAll,
+  onRenameItem,
   onSelectForPreview,
   onGoToUpload,
 }: HistoryGalleryProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+
+  const handleSaveRename = (id: string) => {
+    const trimmed = editingName.trim();
+    if (!trimmed) {
+      toast.error("Image name cannot be empty.");
+      return;
+    }
+    if (onRenameItem) {
+      onRenameItem(id, trimmed);
+    }
+    setEditingId(null);
+  };
 
   const handleCopyUrl = async (item: CutoutHistoryItem) => {
     try {
@@ -177,9 +195,66 @@ export function HistoryGallery({
               <div className="border-t border-border bg-muted/20 p-3.5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-foreground" title={item.name}>
-                      {item.name || "Untitled cutout"}
-                    </p>
+                    {editingId === item.id ? (
+                      <div className="flex items-center gap-1.5 py-0.5">
+                        <input
+                          type="text"
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveRename(item.id);
+                            if (e.key === "Escape") setEditingId(null);
+                          }}
+                          autoFocus
+                          className="w-full rounded border border-input bg-background/90 px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          placeholder="Image name"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveRename(item.id)}
+                          className="p-1 text-green-500 hover:text-green-400 cursor-pointer shrink-0"
+                          title="Save name"
+                        >
+                          <Check className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingId(null)}
+                          className="p-1 text-muted-foreground hover:text-foreground cursor-pointer shrink-0"
+                          title="Cancel"
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 group/name">
+                        <p
+                          className="truncate text-sm font-semibold text-foreground cursor-pointer hover:underline"
+                          title={`Click to rename "${item.name}"`}
+                          onClick={() => {
+                            if (onRenameItem) {
+                              setEditingId(item.id);
+                              setEditingName(item.name || "cutout.png");
+                            }
+                          }}
+                        >
+                          {item.name || "Untitled cutout"}
+                        </p>
+                        {onRenameItem && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingId(item.id);
+                              setEditingName(item.name || "cutout.png");
+                            }}
+                            className="text-muted-foreground hover:text-foreground opacity-60 group-hover/name:opacity-100 transition-opacity p-0.5 cursor-pointer shrink-0"
+                            title="Rename image"
+                          >
+                            <Pencil className="size-3" />
+                          </button>
+                        )}
+                      </div>
+                    )}
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {item.size ? formatBytes(item.size) : "Transparent PNG"}
                     </p>
@@ -189,7 +264,7 @@ export function HistoryGallery({
                     variant="ghost"
                     size="icon"
                     onClick={() => onDeleteItem(item.id)}
-                    className="size-7 text-muted-foreground hover:text-destructive"
+                    className="size-7 text-muted-foreground hover:text-destructive shrink-0"
                     title="Remove from history"
                   >
                     <Trash2 className="size-3.5" />

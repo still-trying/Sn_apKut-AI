@@ -204,3 +204,85 @@ export const deleteAccountServerFn = createServerFn({ method: "POST" })
       };
     }
   });
+
+export interface DeleteCutoutInput {
+  userId: string;
+  cutoutId?: string | undefined;
+  resultUrl?: string | undefined;
+  accessToken: string;
+}
+
+export interface DeleteCutoutResult {
+  success: boolean;
+  error?: string | undefined;
+}
+
+// Secure server function to permanently delete a user's cutout record from Supabase
+export const deleteCutoutServerFn = createServerFn({ method: "POST" })
+  .validator((data: DeleteCutoutInput) => data)
+  .handler(async ({ data }): Promise<DeleteCutoutResult> => {
+    try {
+      if (!data.accessToken) {
+        return { success: false, error: "Unauthorized: Missing authentication token." };
+      }
+
+      const supabaseUrl =
+        process.env["SUPABASE_URL"] ||
+        process.env["VITE_SUPABASE_URL"] ||
+        "https://ugagaidwiadaluisxexo.supabase.co";
+
+      const serviceRoleKey =
+        process.env["SUPABASE_SERVICE_ROLE_KEY"] ||
+        process.env["VITE_SUPABASE_SERVICE_ROLE_KEY"] ||
+        "";
+
+      if (!serviceRoleKey) {
+        return { success: false, error: "SUPABASE_SERVICE_ROLE_KEY is not configured on server." };
+      }
+
+      const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      });
+
+      const { data: authData, error: authError } = await adminClient.auth.getUser(data.accessToken);
+      if (authError || !authData?.user) {
+        return { success: false, error: "Unauthorized: Invalid or expired session." };
+      }
+
+      if (authData.user.id !== data.userId) {
+        return {
+          success: false,
+          error: "Forbidden: You are not authorized to delete another user's cutout.",
+        };
+      }
+
+      // Delete by cutoutId UUID
+      if (data.cutoutId && !data.cutoutId.startsWith("http") && !data.cutoutId.startsWith("local_")) {
+        await adminClient
+          .from("cutout_history")
+          .delete()
+          .eq("user_id", data.userId)
+          .eq("id", data.cutoutId);
+      }
+
+      // Delete by result_url
+      const targetUrl = data.resultUrl || (data.cutoutId?.startsWith("http") ? data.cutoutId : undefined);
+      if (targetUrl) {
+        await adminClient
+          .from("cutout_history")
+          .delete()
+          .eq("user_id", data.userId)
+          .eq("result_url", targetUrl);
+      }
+
+      return { success: true };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  });

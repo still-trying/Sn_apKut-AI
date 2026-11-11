@@ -62,6 +62,8 @@ import {
   rotateUserApiKey,
   deleteUserAccount,
   fetchUserPaymentRecords,
+  deleteCutoutRecord,
+  clearUserCutoutHistory,
   type PaymentRecordItem,
 } from "@/lib/supabase";
 import {
@@ -226,6 +228,59 @@ function DashboardPage() {
 
     toast.success(`Image renamed to "${trimmed}"`);
     setEditingRecentId(null);
+  };
+
+  const handleDeleteCutout = async (itemOrId: CutoutHistoryItem | string) => {
+    const item =
+      typeof itemOrId === "string"
+        ? allCutouts.find((c) => c.id === itemOrId || c.resultUrl === itemOrId)
+        : itemOrId;
+    const targetId = typeof itemOrId === "string" ? itemOrId : itemOrId.id;
+    const resultUrl = item?.resultUrl;
+
+    // 1. Delete from local storage history
+    removeItem(targetId);
+    if (resultUrl && resultUrl !== targetId) {
+      removeItem(resultUrl);
+    }
+
+    // 2. Remove immediately from in-memory state
+    setCloudCutouts((prev) =>
+      prev.filter((c) => c.id !== targetId && (!resultUrl || c.resultUrl !== resultUrl))
+    );
+
+    // 3. Delete from Supabase cloud database
+    if (user) {
+      const res = await deleteCutoutRecord(user.id, targetId, resultUrl);
+      if (res.success) {
+        toast.success("Cutout permanently deleted.");
+      } else {
+        console.warn("Could not sync deletion to Supabase:", res.error);
+        toast.error("Failed to delete cutout from cloud: " + (res.error || "Unknown error"));
+      }
+    } else {
+      toast.success("Cutout removed from history.");
+    }
+  };
+
+  const handleClearAllCutouts = async () => {
+    if (!window.confirm("Are you sure you want to clear your entire cutout history?")) {
+      return;
+    }
+
+    clear(); // clear local storage
+    setCloudCutouts([]); // clear React state
+
+    if (user) {
+      const res = await clearUserCutoutHistory(user.id);
+      if (res.success) {
+        toast.success("Cutout history cleared from device and cloud.");
+      } else {
+        toast.error("Failed to clear cloud history: " + (res.error || "Unknown error"));
+      }
+    } else {
+      toast.success("Cutout history cleared from device.");
+    }
   };
 
   // Route protection: redirect to /auth if not signed in
@@ -1245,13 +1300,21 @@ function DashboardPage() {
                           {formatProcessedDate(item.createdAt)}
                         </div>
 
-                        <div className="col-span-3 sm:col-span-2">
+                        <div className="col-span-3 sm:col-span-2 flex items-center justify-between sm:justify-start">
                           <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-400">
                             completed
                           </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCutout(item)}
+                            className="sm:hidden p-1 text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                            title="Delete cutout"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
                         </div>
 
-                        <div className="hidden sm:col-span-2 sm:flex justify-end">
+                        <div className="hidden sm:col-span-2 sm:flex items-center justify-end gap-2.5">
                           <a
                             href={item.resultUrl}
                             download={item.name ? `cutout-${item.name}` : "cutout.png"}
@@ -1262,6 +1325,14 @@ function DashboardPage() {
                             <Download className="size-3" />
                             <span>Download</span>
                           </a>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCutout(item)}
+                            className="p-1 text-muted-foreground hover:text-destructive transition-colors cursor-pointer rounded hover:bg-muted/30"
+                            title="Delete cutout"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -1287,15 +1358,12 @@ function DashboardPage() {
             <div className="space-y-6">
               <HistoryGallery
                 items={allCutouts}
-                onDeleteItem={(id) => {
-                  removeItem(id);
-                  setCloudCutouts((prev) => prev.filter((c) => c.id !== id));
-                }}
+                onDeleteItem={(id) => handleDeleteCutout(id)}
                 onRenameItem={(id, newName) => {
                   const item = allCutouts.find((c) => c.id === id);
                   if (item) handleRenameCutout(item, newName);
                 }}
-                onClearAll={clear}
+                onClearAll={handleClearAllCutouts}
                 onGoToUpload={() => setActiveTab("upload")}
               />
             </div>
@@ -1876,14 +1944,9 @@ print("Cutout URL:", data.get("url"))`}
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => {
-                    if (window.confirm("Are you sure you want to clear your local cutout history?")) {
-                      clear();
-                      toast.info("Local history cleared.");
-                    }
-                  }}
+                  onClick={handleClearAllCutouts}
                 >
-                  Clear All Local History
+                  Clear All Cutout History
                 </Button>
               </div>
 

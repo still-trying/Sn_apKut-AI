@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { deleteAccountServerFn } from "@/lib/server-auth";
+import { deleteAccountServerFn, deleteCutoutServerFn } from "@/lib/server-auth";
 import { getUserPaymentsServerFn, type PaymentRecordItem } from "@/lib/server-payment";
 
 export type { PaymentRecordItem };
@@ -282,6 +282,86 @@ export async function updateCutoutRecordName(
     return { success: true };
   } catch (err) {
     console.error("updateCutoutRecordName failed:", err);
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Delete a specific cutout record for a user from Supabase cloud database
+export async function deleteCutoutRecord(
+  userId: string,
+  id: string,
+  resultUrl?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // 1. Try server function with verified user access token
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (token) {
+      try {
+        const serverRes = await deleteCutoutServerFn({
+          data: {
+            userId,
+            cutoutId: id,
+            resultUrl,
+            accessToken: token,
+          },
+        });
+        if (serverRes?.success) {
+          return { success: true };
+        }
+      } catch (srvErr) {
+        console.warn("deleteCutoutServerFn error, trying direct query:", srvErr);
+      }
+    }
+
+    // 2. Direct Supabase query with client session
+    let query = supabase.from("cutout_history").delete().eq("user_id", userId);
+
+    if (id && !id.startsWith("http") && !id.startsWith("local_")) {
+      const { error } = await query.eq("id", id);
+      if (!error) {
+        return { success: true };
+      }
+    }
+
+    const targetUrl = resultUrl || (id.startsWith("http") ? id : undefined);
+    if (targetUrl) {
+      const { error } = await supabase
+        .from("cutout_history")
+        .delete()
+        .eq("user_id", userId)
+        .eq("result_url", targetUrl);
+
+      if (error) {
+        console.warn("deleteCutoutRecord error:", error.message);
+        return { success: false, error: error.message };
+      }
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("deleteCutoutRecord failed:", err);
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Clear all cutout records for a specific user from Supabase
+export async function clearUserCutoutHistory(
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from("cutout_history")
+      .delete()
+      .eq("user_id", userId);
+
+    if (error) {
+      console.warn("clearUserCutoutHistory error:", error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err) {
+    console.error("clearUserCutoutHistory failed:", err);
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
 }

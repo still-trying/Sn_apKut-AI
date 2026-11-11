@@ -30,6 +30,8 @@ import {
   saveCutoutRecord,
   upgradeProfileToPro,
   updateCutoutRecordName,
+  deleteCutoutRecord,
+  clearUserCutoutHistory,
 } from "@/lib/supabase";
 import { toast } from "sonner";
 
@@ -413,7 +415,14 @@ export function UploadZone() {
         /* History Gallery: Shows all saved background-removed images from Local Storage */
         <HistoryGallery
           items={history}
-          onDeleteItem={removeItem}
+          onDeleteItem={(id) => {
+            const item = history.find((h) => h.id === id);
+            removeItem(id);
+            if (user) {
+              deleteCutoutRecord(user.id, id, item?.resultUrl);
+            }
+            toast.success("Cutout removed from history.");
+          }}
           onRenameItem={(id, newName) => {
             renameItem(id, newName);
             if (user) {
@@ -424,7 +433,15 @@ export function UploadZone() {
             }
             toast.success(`Image renamed to "${newName}"`);
           }}
-          onClearAll={clear}
+          onClearAll={() => {
+            if (window.confirm("Are you sure you want to clear your cutout history?")) {
+              clear();
+              if (user) {
+                clearUserCutoutHistory(user.id);
+              }
+              toast.info("Cutout history cleared.");
+            }
+          }}
           onSelectForPreview={(item) => {
             setResultUrl(item.resultUrl);
             setPreview(item.resultUrl);

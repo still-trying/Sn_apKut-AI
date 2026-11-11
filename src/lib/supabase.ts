@@ -1,8 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 import { deleteAccountServerFn, deleteCutoutServerFn } from "@/lib/server-auth";
 import { getUserPaymentsServerFn, type PaymentRecordItem } from "@/lib/server-payment";
+import {
+  submitContactInquiryServerFn,
+  type SubmitContactInquiryInput,
+  type SubmitContactInquiryResult,
+} from "@/lib/server-contact";
 
-export type { PaymentRecordItem };
+export type { PaymentRecordItem, SubmitContactInquiryInput, SubmitContactInquiryResult };
 
 const supabaseUrl =
   (import.meta.env["VITE_SUPABASE_URL"] as string | undefined) ||
@@ -588,6 +593,54 @@ export async function deleteUserAccount(
 
     await supabase.auth.signOut();
     return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// Submit a customer support or business contact inquiry
+export async function submitContactInquiry(inquiry: {
+  name: string;
+  email: string;
+  phone?: string | undefined;
+  subject: string;
+  message: string;
+}): Promise<SubmitContactInquiryResult> {
+  try {
+    // 1. Try server function using Service Role
+    const serverRes = await submitContactInquiryServerFn({
+      data: inquiry,
+    });
+    if (serverRes?.success) {
+      return serverRes;
+    }
+    if (serverRes?.error) {
+      return { success: false, error: serverRes.error };
+    }
+  } catch (err) {
+    console.warn("submitContactInquiryServerFn failed, attempting direct insert:", err);
+  }
+
+  // 2. Fallback: direct insert using public client via RLS policy
+  try {
+    const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, "");
+    const randomSuffix = Math.random().toString(36).substring(2, 7).toUpperCase();
+    const ticketId = `TKT-${dateStr}-${randomSuffix}`;
+
+    const { error } = await supabase.from("contact_inquiries").insert({
+      ticket_id: ticketId,
+      name: inquiry.name.trim(),
+      email: inquiry.email.trim().toLowerCase(),
+      phone: inquiry.phone?.trim() || null,
+      subject: inquiry.subject,
+      message: inquiry.message.trim(),
+      status: "open",
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    return { success: true, ticketId };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }

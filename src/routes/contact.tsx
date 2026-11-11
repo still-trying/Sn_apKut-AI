@@ -14,7 +14,11 @@ import {
   Send,
   CheckCircle2,
   HelpCircle,
+  Copy,
+  Check,
+  RefreshCw,
 } from "lucide-react";
+import { submitContactInquiry } from "@/lib/supabase";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/contact")({
@@ -33,7 +37,9 @@ export const Route = createFileRoute("/contact")({
 
 function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [ticketId, setTicketId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [copiedTicket, setCopiedTicket] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -42,21 +48,40 @@ function ContactPage() {
     message: "",
   });
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.email || !formData.message) {
+    if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) {
       toast.error("Please fill in all required fields.");
       return;
     }
 
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await submitContactInquiry(formData);
+      if (res.success && res.ticketId) {
+        setTicketId(res.ticketId);
+        setSubmitted(true);
+        toast.success(`Support Ticket #${res.ticketId} created!`, {
+          description: "Our engineering support team will respond within 24 business hours.",
+        });
+      } else {
+        toast.error(res.error || "Failed to submit inquiry. Please try again or email support@snapkut.ai.");
+      }
+    } catch (err) {
+      console.error("Submission error:", err);
+      toast.error("An unexpected error occurred. Please contact support@snapkut.ai.");
+    } finally {
       setLoading(false);
-      setSubmitted(true);
-      toast.success("Thank you! Your message has been received.", {
-        description: "Our support team will respond within 24 business hours.",
-      });
-    }, 600);
+    }
+  };
+
+  const handleCopyTicket = () => {
+    if (ticketId) {
+      navigator.clipboard.writeText(ticketId);
+      setCopiedTicket(true);
+      toast.success("Ticket ID copied to clipboard!");
+      setTimeout(() => setCopiedTicket(false), 2000);
+    }
   };
 
   return (
@@ -161,29 +186,51 @@ function ContactPage() {
             <div className="glass-card p-6 sm:p-8">
               {submitted ? (
                 <div className="text-center py-12 space-y-4">
-                  <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
                     <CheckCircle2 className="size-8" />
                   </div>
-                  <h3 className="text-2xl font-bold">Message Sent Successfully!</h3>
+                  <h3 className="text-2xl font-bold text-foreground">Inquiry Ticket Created!</h3>
                   <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                    Thank you for contacting Sn_apKut AI. A customer service representative has received your ticket and will follow up at <strong>{formData.email}</strong> within 24 hours.
+                    Thank you for contacting Sn_apKut AI. Your message has been securely recorded in our support vault. A representative will follow up at <strong>{formData.email}</strong> within 24 business hours.
                   </p>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setSubmitted(false);
-                      setFormData({
-                        name: "",
-                        email: "",
-                        phone: "",
-                        subject: "billing",
-                        message: "",
-                      });
-                    }}
-                    className="mt-4"
-                  >
-                    Send another inquiry
-                  </Button>
+
+                  {ticketId && (
+                    <div className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3.5 py-2 text-xs font-mono font-semibold text-primary mt-2">
+                      <span>Ticket Reference: #{ticketId}</span>
+                      <button
+                        type="button"
+                        onClick={handleCopyTicket}
+                        className="p-1 text-primary hover:text-foreground transition-colors cursor-pointer"
+                        title="Copy ticket reference ID"
+                      >
+                        {copiedTicket ? (
+                          <Check className="size-3.5 text-emerald-400" />
+                        ) : (
+                          <Copy className="size-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSubmitted(false);
+                        setTicketId(null);
+                        setFormData({
+                          name: "",
+                          email: "",
+                          phone: "",
+                          subject: "billing",
+                          message: "",
+                        });
+                      }}
+                      className="mt-2 text-xs"
+                    >
+                      Send another inquiry
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-5">
@@ -277,10 +324,12 @@ function ContactPage() {
                     type="submit"
                     size="lg"
                     disabled={loading}
-                    className="bg-gradient-cta glow w-full border-0 font-semibold text-primary-foreground"
+                    className="bg-gradient-cta glow w-full border-0 font-semibold text-primary-foreground cursor-pointer"
                   >
                     {loading ? (
-                      "Submitting message…"
+                      <span className="flex items-center gap-2">
+                        <RefreshCw className="size-4 animate-spin" /> Submitting ticket...
+                      </span>
                     ) : (
                       <>
                         <Send className="size-4" /> Send Message

@@ -298,3 +298,65 @@ export const verifyAndApplyPaymentServerFn = createServerFn({ method: "POST" })
     }
   });
 
+export interface PaymentRecordItem {
+  id: string;
+  user_id: string;
+  razorpay_payment_id: string;
+  razorpay_order_id?: string | null;
+  razorpay_signature?: string | null;
+  plan_name: string;
+  amount_in_rupees: number;
+  currency: string;
+  status: string;
+  created_at: string;
+}
+
+export interface GetUserPaymentsInput {
+  accessToken: string;
+}
+
+export interface GetUserPaymentsResult {
+  success: boolean;
+  records?: PaymentRecordItem[];
+  error?: string;
+}
+
+// 3. Retrieve authenticated user payment records securely
+export const getUserPaymentsServerFn = createServerFn({ method: "POST" })
+  .validator((data: GetUserPaymentsInput) => data)
+  .handler(async ({ data }): Promise<GetUserPaymentsResult> => {
+    try {
+      if (!data.accessToken) {
+        return { success: false, error: "Unauthorized: Missing authentication token." };
+      }
+
+      const adminClient = getAdminClient();
+      const { data: authData, error: authError } = await adminClient.auth.getUser(data.accessToken);
+      if (authError || !authData?.user) {
+        return { success: false, error: "Unauthorized: Invalid or expired session." };
+      }
+
+      const { data: records, error: queryError } = await adminClient
+        .from("payment_records")
+        .select(
+          "id, user_id, razorpay_payment_id, razorpay_order_id, razorpay_signature, plan_name, amount_in_rupees, currency, status, created_at"
+        )
+        .eq("user_id", authData.user.id)
+        .order("created_at", { ascending: false });
+
+      if (queryError) {
+        return { success: false, error: queryError.message };
+      }
+
+      return {
+        success: true,
+        records: (records as PaymentRecordItem[]) || [],
+      };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  });
+

@@ -38,6 +38,10 @@ import {
   RefreshCw,
   Trash2,
   Menu,
+  Receipt,
+  Coins,
+  FileText,
+  Printer,
 } from "lucide-react";
 import logo from "@/assets/snapkut-logo.png.asset.json";
 import { useUserCredits } from "@/hooks/use-user-credits";
@@ -57,7 +61,24 @@ import {
   updateUserPassword,
   rotateUserApiKey,
   deleteUserAccount,
+  fetchUserPaymentRecords,
+  type PaymentRecordItem,
 } from "@/lib/supabase";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/dashboard")({
@@ -121,6 +142,12 @@ function DashboardPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
+
+  // Invoices & Payment records state
+  const [paymentRecords, setPaymentRecords] = useState<PaymentRecordItem[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<PaymentRecordItem | null>(null);
+  const [copiedInvoicePaymentId, setCopiedInvoicePaymentId] = useState<string | null>(null);
 
   // Rename recent cutout states
   const [editingRecentId, setEditingRecentId] = useState<string | null>(null);
@@ -232,6 +259,26 @@ function DashboardPage() {
         }));
         setCloudCutouts(mapped);
       });
+    }
+  }, [user, activeTab]);
+
+  // Fetch user payment records from Supabase
+  const loadPaymentRecords = async () => {
+    if (!user) return;
+    setLoadingPayments(true);
+    try {
+      const records = await fetchUserPaymentRecords(user.id);
+      setPaymentRecords(records);
+    } catch (err) {
+      console.error("Failed to load payment records:", err);
+    } finally {
+      setLoadingPayments(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user && activeTab === "billing") {
+      loadPaymentRecords();
     }
   }, [user, activeTab]);
 
@@ -350,6 +397,7 @@ function DashboardPage() {
           }
 
           await refreshProfile();
+          await loadPaymentRecords();
           toast.success("Account upgraded to Pro! Unlimited cutouts enabled.");
         } catch (err) {
           console.error("Upgrade error:", err);
@@ -380,6 +428,7 @@ function DashboardPage() {
           }
 
           await refreshProfile();
+          await loadPaymentRecords();
           toast.success("250 Credits added to your balance!");
         } catch (err) {
           console.error("Buy credits error:", err);
@@ -387,6 +436,13 @@ function DashboardPage() {
         }
       },
     });
+  };
+
+  const handleCopyPaymentId = (paymentId: string) => {
+    navigator.clipboard.writeText(paymentId);
+    setCopiedInvoicePaymentId(paymentId);
+    toast.success("Payment ID copied to clipboard!");
+    setTimeout(() => setCopiedInvoicePaymentId(null), 2000);
   };
 
   const handleCopyApiKey = () => {
@@ -1287,6 +1343,231 @@ function DashboardPage() {
                 <ShieldCheck className="size-4 text-primary shrink-0" />
                 <span>All transactions are secured with 256-Bit SSL encryption via Razorpay. Cancel anytime.</span>
               </div>
+
+              {/* Invoices & Payment History Section */}
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <Receipt className="size-5 text-primary" />
+                    <div>
+                      <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                        Invoices & Payment History
+                        {paymentRecords.length > 0 && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-bold">
+                            {paymentRecords.length}
+                          </Badge>
+                        )}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Verified receipts and transaction records for all account payments.
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={loadPaymentRecords}
+                    disabled={loadingPayments}
+                    className="h-8 gap-1.5 text-xs border-border/80 hover:bg-muted/50 cursor-pointer"
+                  >
+                    <RefreshCw className={`size-3.5 ${loadingPayments ? "animate-spin text-primary" : ""}`} />
+                    <span>Refresh</span>
+                  </Button>
+                </div>
+
+                {loadingPayments ? (
+                  <div className="glass-card p-8 text-center space-y-3">
+                    <RefreshCw className="size-6 animate-spin text-primary mx-auto" />
+                    <p className="text-xs text-muted-foreground">Loading your payment records from secure vault...</p>
+                  </div>
+                ) : paymentRecords.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border/80 bg-card/20 p-8 text-center">
+                    <div className="size-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3">
+                      <Receipt className="size-6 text-primary" />
+                    </div>
+                    <h4 className="text-sm font-semibold text-foreground">No payment history yet</h4>
+                    <p className="text-xs text-muted-foreground max-w-md mx-auto mt-1 mb-4">
+                      When you upgrade to Pro (₹799) or purchase credit packs (₹299), your official Razorpay payment receipts, order IDs, and printable invoices will appear here.
+                    </p>
+                    {activePlan !== "pro" ? (
+                      <Button
+                        size="sm"
+                        onClick={handleUpgradeToPro}
+                        className="bg-gradient-cta glow border-0 text-xs font-semibold text-primary-foreground gap-1.5"
+                      >
+                        <Zap className="size-3.5" /> Upgrade to Pro (₹799)
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleBuyCredits}
+                        className="text-xs font-semibold gap-1.5"
+                      >
+                        <Coins className="size-3.5 text-amber-400" /> Buy 250 Credits (₹299)
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Desktop Table View */}
+                    <div className="hidden sm:block overflow-hidden rounded-xl border border-border/70 bg-card/30">
+                      <Table>
+                        <TableHeader className="bg-muted/30">
+                          <TableRow className="border-border/60 hover:bg-transparent">
+                            <TableHead className="text-xs font-semibold text-muted-foreground">Date & Time</TableHead>
+                            <TableHead className="text-xs font-semibold text-muted-foreground">Plan / Description</TableHead>
+                            <TableHead className="text-xs font-semibold text-muted-foreground">Payment ID</TableHead>
+                            <TableHead className="text-xs font-semibold text-muted-foreground">Amount</TableHead>
+                            <TableHead className="text-xs font-semibold text-muted-foreground">Status</TableHead>
+                            <TableHead className="text-right text-xs font-semibold text-muted-foreground">Invoice</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {paymentRecords.map((record) => (
+                            <TableRow key={record.id} className="border-border/50 hover:bg-card/50">
+                              <TableCell className="text-xs font-medium text-foreground py-3">
+                                {new Date(record.created_at).toLocaleDateString("en-US", {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                })}
+                                <span className="block text-[11px] text-muted-foreground">
+                                  {new Date(record.created_at).toLocaleTimeString("en-US", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                              </TableCell>
+                              <TableCell className="py-3">
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                                  {record.plan_name === "Pro" ? (
+                                    <>
+                                      <Zap className="size-3.5 text-primary shrink-0" />
+                                      <span>Pro Plan (Monthly)</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Coins className="size-3.5 text-amber-400 shrink-0" />
+                                      <span>250 Credits Pack</span>
+                                    </>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-muted-foreground block">
+                                  {record.razorpay_order_id ? `Order: ${record.razorpay_order_id}` : "Direct Capture"}
+                                </span>
+                              </TableCell>
+                              <TableCell className="py-3">
+                                <div className="flex items-center gap-1">
+                                  <span className="font-mono text-[11px] text-muted-foreground truncate max-w-[120px]">
+                                    {record.razorpay_payment_id}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyPaymentId(record.razorpay_payment_id)}
+                                    className="p-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                                    title="Copy Payment ID"
+                                  >
+                                    {copiedInvoicePaymentId === record.razorpay_payment_id ? (
+                                      <Check className="size-3 text-emerald-400" />
+                                    ) : (
+                                      <Copy className="size-3" />
+                                    )}
+                                  </button>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-xs font-bold text-foreground py-3">
+                                ₹{record.amount_in_rupees || (record.plan_name === "Pro" ? 799 : 299)}.00
+                              </TableCell>
+                              <TableCell className="py-3">
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border-emerald-500/20 px-2 py-0.5"
+                                >
+                                  <CheckCircle2 className="size-2.5 mr-1" />
+                                  Captured
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right py-3">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setSelectedInvoice(record)}
+                                  className="h-7 text-xs gap-1 border-border/80 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all cursor-pointer"
+                                >
+                                  <FileText className="size-3" />
+                                  <span>View Receipt</span>
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {/* Mobile Card View */}
+                    <div className="space-y-2.5 sm:hidden">
+                      {paymentRecords.map((record) => (
+                        <div
+                          key={record.id}
+                          className="glass-card p-4 space-y-3 border border-border/70 rounded-xl"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                                {record.plan_name === "Pro" ? (
+                                  <>
+                                    <Zap className="size-3.5 text-primary shrink-0" />
+                                    <span>Pro Plan (Monthly)</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Coins className="size-3.5 text-amber-400 shrink-0" />
+                                    <span>250 Credits Pack</span>
+                                  </>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">
+                                {new Date(record.created_at).toLocaleString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </p>
+                            </div>
+                            <span className="text-sm font-extrabold text-foreground">
+                              ₹{record.amount_in_rupees || (record.plan_name === "Pro" ? 799 : 299)}.00
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2 border-t border-border/60 text-xs">
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/20 px-2 py-0.5"
+                            >
+                              <CheckCircle2 className="size-2.5 mr-1" />
+                              Captured
+                            </Badge>
+
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setSelectedInvoice(record)}
+                              className="h-7 text-xs gap-1 border-border/80 hover:bg-primary hover:text-primary-foreground"
+                            >
+                              <FileText className="size-3" />
+                              <span>Receipt</span>
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -1693,6 +1974,161 @@ print("Cutout URL:", data.get("url"))`}
           )}
         </main>
       </div>
+
+      {/* Invoice Receipt Modal */}
+      {selectedInvoice && (
+        <Dialog open={!!selectedInvoice} onOpenChange={(open) => !open && setSelectedInvoice(null)}>
+          <DialogContent className="max-w-xl bg-card border-border/80 p-0 overflow-hidden shadow-2xl">
+            <DialogHeader className="sr-only">
+              <DialogTitle>Sn_apKut AI Invoice Receipt</DialogTitle>
+              <DialogDescription>
+                Detailed transaction receipt for payment {selectedInvoice.razorpay_payment_id}
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* Printable Receipt Content */}
+            <div id="snapkut-invoice-print-area" className="p-6 sm:p-8 space-y-6">
+              {/* Receipt Brand Header */}
+              <div className="flex items-start justify-between border-b border-border/70 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <img
+                    src={logo.url}
+                    alt="Sn_apKut AI"
+                    className="size-9 rounded-lg object-contain bg-white/95 p-1 shadow-sm ring-1 ring-white/10"
+                  />
+                  <div>
+                    <h3 className="text-base font-bold tracking-tight">
+                      Sn_apKut <span className="text-gradient">AI</span>
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">Official Payment Receipt</p>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-xs font-mono font-bold text-primary block">
+                    INV-{new Date(selectedInvoice.created_at).getFullYear()}
+                    {String(new Date(selectedInvoice.created_at).getMonth() + 1).padStart(2, "0")}-
+                    {selectedInvoice.id.slice(0, 6).toUpperCase()}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {new Date(selectedInvoice.created_at).toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </span>
+                </div>
+              </div>
+
+              {/* Billed To & Gateway Details */}
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                <div>
+                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
+                    Billed To
+                  </span>
+                  <p className="font-semibold text-foreground truncate">
+                    {profile?.full_name || user?.email?.split("@")[0] || "Customer"}
+                  </p>
+                  <p className="text-muted-foreground truncate">{user?.email}</p>
+                </div>
+
+                <div>
+                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
+                    Payment Gateway
+                  </span>
+                  <p className="font-semibold text-foreground">Razorpay (256-Bit SSL)</p>
+                  <p className="font-mono text-[11px] text-muted-foreground truncate">
+                    ID: {selectedInvoice.razorpay_payment_id}
+                  </p>
+                  {selectedInvoice.razorpay_order_id && (
+                    <p className="font-mono text-[10px] text-muted-foreground truncate">
+                      Order: {selectedInvoice.razorpay_order_id}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Itemized Line Items Table */}
+              <div className="rounded-lg border border-border/70 overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/40 border-b border-border/60">
+                    <tr>
+                      <th className="text-left font-semibold text-muted-foreground p-3">Item Description</th>
+                      <th className="text-center font-semibold text-muted-foreground p-3">Qty</th>
+                      <th className="text-right font-semibold text-muted-foreground p-3">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-border/40">
+                      <td className="p-3">
+                        <span className="font-bold text-foreground block">
+                          {selectedInvoice.plan_name === "Pro"
+                            ? "Sn_apKut AI Pro Plan (Monthly)"
+                            : "Sn_apKut AI Credit Pack (250 Cutouts)"}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground block">
+                          {selectedInvoice.plan_name === "Pro"
+                            ? "Unlimited high-resolution AI background removal, priority queue & API access"
+                            : "250 high-resolution background removal credits"}
+                        </span>
+                      </td>
+                      <td className="text-center p-3 text-muted-foreground">1</td>
+                      <td className="text-right p-3 font-semibold text-foreground">
+                        ₹{selectedInvoice.amount_in_rupees || (selectedInvoice.plan_name === "Pro" ? 799 : 299)}.00
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Totals & Status */}
+              <div className="space-y-1.5 text-xs border-t border-border/60 pt-3">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span>₹{selectedInvoice.amount_in_rupees || (selectedInvoice.plan_name === "Pro" ? 799 : 299)}.00</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Taxes (GST 0% / Included)</span>
+                  <span>₹0.00</span>
+                </div>
+                <div className="flex justify-between text-sm font-bold text-foreground pt-2 border-t border-border/60">
+                  <span>Total Paid (INR)</span>
+                  <span className="text-primary text-base">
+                    ₹{selectedInvoice.amount_in_rupees || (selectedInvoice.plan_name === "Pro" ? 799 : 299)}.00
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold pt-1">
+                  <CheckCircle2 className="size-3.5" />
+                  <span>Payment Status: Captured & Verified</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="bg-muted/30 px-6 py-3.5 border-t border-border/60 flex items-center justify-between gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  window.print();
+                }}
+                className="text-xs gap-1.5 cursor-pointer"
+              >
+                <Printer className="size-3.5" />
+                <span>Print Receipt</span>
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={() => setSelectedInvoice(null)}
+                className="text-xs px-4 cursor-pointer"
+              >
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

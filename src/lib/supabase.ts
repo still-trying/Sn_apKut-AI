@@ -1,5 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { deleteAccountServerFn } from "@/lib/server-auth";
+import { getUserPaymentsServerFn, type PaymentRecordItem } from "@/lib/server-payment";
+
+export type { PaymentRecordItem };
 
 const supabaseUrl =
   (import.meta.env["VITE_SUPABASE_URL"] as string | undefined) ||
@@ -402,6 +405,38 @@ export async function savePaymentRecord(
     });
   } catch (err) {
     console.error("Failed to save payment record in Supabase:", err);
+  }
+}
+
+// Fetch authenticated user payment history
+export async function fetchUserPaymentRecords(userId: string): Promise<PaymentRecordItem[]> {
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (token) {
+      const serverRes = await getUserPaymentsServerFn({ data: { accessToken: token } });
+      if (serverRes?.success && Array.isArray(serverRes.records)) {
+        return serverRes.records;
+      }
+    }
+
+    // Direct fallback if session token server fn had an issue
+    const { data, error } = await supabase
+      .from("payment_records")
+      .select(
+        "id, user_id, razorpay_payment_id, razorpay_order_id, razorpay_signature, plan_name, amount_in_rupees, currency, status, created_at"
+      )
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.warn("fetchUserPaymentRecords error:", error.message);
+      return [];
+    }
+    return (data as PaymentRecordItem[]) || [];
+  } catch (err) {
+    console.error("Failed to fetch user payments:", err);
+    return [];
   }
 }
 

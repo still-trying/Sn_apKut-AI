@@ -4,6 +4,47 @@ import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { handleRemoveBgApi } from "./server/api-remove-bg";
 
+const APP_VERSION = "1.0.0";
+
+const HEALTH_CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Accept",
+};
+
+/** Responds to uptime checks on GET/HEAD /api/health without touching SSR or database connections. */
+function handleHealthCheck(request: Request): Response {
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: HEALTH_CORS_HEADERS });
+  }
+
+  const headers = {
+    ...HEALTH_CORS_HEADERS,
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "Content-Type": "application/json; charset=utf-8",
+  };
+
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return new Response(JSON.stringify({ error: "Method Not Allowed. Use GET or HEAD." }), {
+      status: 405,
+      headers: { ...headers, Allow: "GET, HEAD, OPTIONS" },
+    });
+  }
+
+  if (request.method === "HEAD") {
+    return new Response(null, { status: 200, headers });
+  }
+
+  return new Response(
+    JSON.stringify({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      version: APP_VERSION,
+    }),
+    { status: 200, headers },
+  );
+}
+
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
 };
@@ -49,6 +90,9 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const url = new URL(request.url);
+      if (url.pathname === "/api/health") {
+        return handleHealthCheck(request);
+      }
       if (url.pathname === "/api/v1/remove-bg") {
         return await handleRemoveBgApi(request);
       }

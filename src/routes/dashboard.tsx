@@ -37,6 +37,7 @@ import {
   KeyRound,
   RefreshCw,
   Trash2,
+  Menu,
 } from "lucide-react";
 import logo from "@/assets/snapkut-logo.png.asset.json";
 import { useUserCredits } from "@/hooks/use-user-credits";
@@ -96,6 +97,7 @@ function DashboardPage() {
   const [copiedKey, setCopiedKey] = useState(false);
   const [cloudCutouts, setCloudCutouts] = useState<CutoutHistoryItem[]>([]);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // User profile & security state
   const [displayNameInput, setDisplayNameInput] = useState("");
@@ -459,8 +461,8 @@ function DashboardPage() {
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      {/* Left Sidebar Navigation */}
-      <aside className="sticky top-0 flex h-screen w-64 flex-col justify-between border-r border-border/60 bg-card/40 p-4 backdrop-blur-xl">
+      {/* Left Sidebar Navigation (Desktop) */}
+      <aside className="hidden md:flex sticky top-0 h-screen w-64 flex-col justify-between border-r border-border/60 bg-card/40 p-4 backdrop-blur-xl shrink-0">
         <div className="space-y-6">
           {/* Logo / Brand Header */}
           <Link to="/" className="flex items-center gap-2.5 px-2 py-1">
@@ -512,9 +514,9 @@ function DashboardPage() {
                 <Clock className="size-4" />
                 <span>History</span>
               </div>
-              {history.length > 0 && (
+              {allCutouts.length > 0 && (
                 <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-bold">
-                  {history.length}
+                  {allCutouts.length}
                 </Badge>
               )}
             </button>
@@ -606,31 +608,178 @@ function DashboardPage() {
         </div>
       </aside>
 
+      {/* Mobile Slide-Over Navigation Drawer */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm transition-opacity"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+
+          {/* Drawer Menu Panel */}
+          <div className="relative flex w-72 max-w-[85vw] flex-col justify-between bg-card p-5 border-r border-border shadow-2xl z-10 animate-in slide-in-from-left duration-200">
+            <div className="space-y-6">
+              {/* Header with Brand Logo & Close Button */}
+              <div className="flex items-center justify-between pb-3 border-b border-border/60">
+                <Link
+                  to="/"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2.5"
+                >
+                  <img
+                    src={logo.url}
+                    alt="Sn_apKut AI Logo"
+                    className="size-8 rounded-lg object-contain bg-white/95 p-1 shadow-sm ring-1 ring-white/10"
+                  />
+                  <span className="text-base font-bold tracking-tight">
+                    Sn_apKut <span className="text-gradient">AI</span>
+                  </span>
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="size-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+                  aria-label="Close navigation menu"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              {/* Navigation Links */}
+              <nav className="space-y-1">
+                {[
+                  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+                  { id: "upload", label: "Upload", icon: Upload },
+                  { id: "history", label: "History", icon: Clock, count: allCutouts.length },
+                  { id: "billing", label: "Billing", icon: CreditCard },
+                  { id: "api", label: "API Keys", icon: Key },
+                  { id: "settings", label: "Settings", icon: Settings },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setActiveTab(item.id as DashboardTab);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer ${
+                      activeTab === item.id
+                        ? "bg-primary/15 text-primary shadow-sm"
+                        : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon className="size-4" />
+                      <span>{item.label}</span>
+                    </div>
+                    {typeof item.count === "number" && item.count > 0 && (
+                      <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-bold">
+                        {item.count}
+                      </Badge>
+                    )}
+                  </button>
+                ))}
+              </nav>
+            </div>
+
+            {/* Bottom Plan & Profile Footer */}
+            <div className="space-y-4 pt-4 border-t border-border/60">
+              <div className="rounded-xl border border-border/80 bg-background/60 p-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Sparkles className="size-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-foreground">
+                      {activePlan === "pro" ? "Pro Plan" : "Free Plan"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {activePlan === "pro" ? "Unlimited cutouts" : `${activeCredits} credits left`}
+                    </p>
+                  </div>
+                </div>
+
+                {activePlan !== "pro" && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      handleUpgradeToPro();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="bg-gradient-cta glow mt-2.5 w-full border-0 text-xs font-semibold text-primary-foreground h-8"
+                  >
+                    Upgrade to Pro (₹799)
+                  </Button>
+                )}
+              </div>
+
+              {/* Profile & Sign Out */}
+              <div className="flex items-center justify-between px-1 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="size-7 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                    {(profile?.full_name || user?.email || "U")[0]?.toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold text-foreground">
+                      {profile?.full_name || user?.email?.split("@")[0]}
+                    </p>
+                    <p className="truncate text-[10px] text-muted-foreground">
+                      {user?.email}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => signOut()}
+                  className="p-1.5 text-muted-foreground hover:text-destructive transition-colors rounded-md hover:bg-muted/30"
+                  title="Sign Out"
+                >
+                  <LogOut className="size-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Navbar */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/60 bg-background/80 px-6 backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold tracking-tight capitalize">
-              {activeTab === "dashboard" ? "Dashboard" : activeTab}
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/60 bg-background/80 px-4 sm:px-6 backdrop-blur-md">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {/* Mobile Menu Hamburger Button */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="md:hidden flex size-9 items-center justify-center rounded-lg border border-border/80 bg-card/60 text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="size-5" />
+            </button>
+
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight capitalize truncate">
+              {activeTab === "dashboard" ? "Dashboard" : activeTab === "api" ? "Developer API" : activeTab}
             </h1>
             <Badge variant="outline" className="hidden sm:inline-flex text-[11px]">
               {activePlan === "pro" ? "Pro Member" : "Free Tier"}
             </Badge>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               to="/"
-              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mr-2"
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mr-1 sm:mr-2"
             >
-              <ArrowLeft className="size-3.5" /> Back to Home
+              <ArrowLeft className="size-3.5" />
+              <span className="hidden sm:inline">Back to Home</span>
             </Link>
 
             <Button
               size="sm"
               onClick={() => setActiveTab("upload")}
-              className="bg-gradient-cta glow border-0 font-semibold text-primary-foreground gap-1.5"
+              className="bg-gradient-cta glow border-0 font-semibold text-primary-foreground gap-1.5 text-xs sm:text-sm px-2.5 sm:px-3 h-8 sm:h-9"
             >
               <Plus className="size-4" />
               <span>New Upload</span>
@@ -639,7 +788,7 @@ function DashboardPage() {
         </header>
 
         {/* Dynamic Tab Body */}
-        <main className="flex-1 p-6 lg:p-8 max-w-7xl w-full">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full">
           {activeTab === "dashboard" && (
             <div className="space-y-8">
               {/* 4 Stat Cards */}

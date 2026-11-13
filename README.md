@@ -144,10 +144,10 @@ sequenceDiagram
     Client->>Server: POST /api/v1/remove-bg (Binary or Multipart + Bearer Token)
     Server->>Server: Check Content-Type & Size (<= 15 MB)
 
-    alt Token starts with "sk_live_"
+    alt Token is Developer API Key (sk_live_...)
         Server->>DB: SELECT * FROM profiles WHERE api_key = token
     else User Session JWT
-        Server->>DB: supabase.auth.getUser(token) -> SELECT * FROM profiles WHERE id = user.id
+        Server->>DB: Validate token via auth.getUser and query profile
     end
 
     DB-->>Server: Return profile (plan, credits_remaining)
@@ -158,10 +158,9 @@ sequenceDiagram
         Server->>ML: POST imageBuffer with original Content-Type
         ML-->>Server: Upstream Response (Transparent PNG URL)
         
-        opt Free User
+        alt Free User
             Server->>DB: UPDATE profiles (credits_remaining - 1, total_processed + 1)
-        end
-        opt Pro User
+        else Pro User
             Server->>DB: UPDATE profiles (total_processed + 1)
         end
         
@@ -182,8 +181,8 @@ sequenceDiagram
     participant VerifyFn as verifyAndApplyPaymentServerFn
     participant DB as Supabase Profiles & Payments
 
-    User->>Client: Click "Upgrade to Pro" (₹799) or "Buy 250 Credits" (₹299)
-    Client->>ServerFn: Call with user access_token & planName
+    User->>Client: Click Upgrade to Pro (₹799) or Buy 250 Credits (₹299)
+    Client->>ServerFn: Call with user access_token and planName
     ServerFn->>RZP: POST /v1/orders (amount: 79900 or 29900 paise, currency: INR)
     RZP-->>ServerFn: Order Created { id: "order_xyz", amount: 79900 }
     ServerFn-->>Client: Return { orderId, amount, keyId }
@@ -196,9 +195,9 @@ sequenceDiagram
     Note over VerifyFn: expected = HMAC_SHA256(order_id + "|" + payment_id, SECRET)
     
     alt Signatures Match (crypto.timingSafeEqual)
-        opt Plan == "Pro"
+        alt Plan is Pro
             VerifyFn->>DB: UPDATE profiles SET plan = 'pro'
-        opt Plan == "Credit packs"
+        else Plan is Credit packs
             VerifyFn->>DB: UPDATE profiles SET credits_remaining = credits_remaining + 250
         end
         VerifyFn->>DB: INSERT INTO payment_records (status: 'captured', ...)

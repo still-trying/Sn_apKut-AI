@@ -2,193 +2,236 @@
 
 <div align="center">
 
-![Sn_apKut AI Banner](public/snapkut-logo.png)
+![Sn_apKut AI Logo](public/snapkut-logo.png)
 
-### **Next-Generation AI Background Removal Platform & Developer API**
+### **Production-Grade AI Background Removal Platform & Developer REST API**
 
-[![Vite](https://img.shields.io/badge/Vite-8.3.6-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![TanStack Start](https://img.shields.io/badge/TanStack-Start-FF4154?style=for-the-badge&logo=react&logoColor=white)](https://tanstack.com/start)
-[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Supabase](https://img.shields.io/badge/Supabase-Database%20%26%20Auth-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
-[![Razorpay](https://img.shields.io/badge/Razorpay-Payment%20Gateway-02042B?style=for-the-badge&logo=razorpay&logoColor=3395FF)](https://razorpay.com/)
-[![Cloudflare / Nitro](https://img.shields.io/badge/Nitro-Cloudflare%20Edge-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)](https://nitro.unjs.io/)
+[![React](https://img.shields.io/badge/React-19.2.0-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![TanStack Start](https://img.shields.io/badge/TanStack_Start-1.168.60-FF4154?style=for-the-badge&logo=react&logoColor=white)](https://tanstack.com/start)
+[![Vite](https://img.shields.io/badge/Vite-8.3.6_(Rolldown)-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8.3-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.2.1-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Supabase](https://img.shields.io/badge/Supabase-Auth_%26_PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
+[![Razorpay](https://img.shields.io/badge/Razorpay-Orders_API_%26_Checkout-02042B?style=for-the-badge&logo=razorpay&logoColor=3395FF)](https://razorpay.com/)
+[![Nitro](https://img.shields.io/badge/Nitro-Cloudflare_Module-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)](https://nitro.unjs.io/)
 
-[Live Studio](https://sn_ap_kut_ai.vercel.app) • [Developer API Docs](#-developer-api-reference) • [Architecture](#-system-architecture) • [Database Schema](#-database-schema--rls) • [Quickstart](#-getting-started)
+[Live Application](https://sn_ap_kut_ai.vercel.app) • [System Architecture](#-system-architecture) • [Execution Flows](#-execution-flows) • [Database & Schema](#-database-schema--rls) • [Developer API Reference](#-developer-api-reference) • [Local Setup](#-getting-started)
 
 </div>
 
 ---
 
-## 📌 Executive Summary
+## 📖 Overview
 
-**Sn_apKut AI** is an enterprise-grade, commercial-ready Software-as-a-Service (SaaS) web studio and developer API engine for instant, high-precision AI background removal. Engineered with a full-stack modern architecture utilizing **TanStack Start**, **Vite 8 (Rolldown)**, **Supabase PostgreSQL & Auth**, and **Razorpay**, Sn_apKut AI bridges the gap between consumer photo workflows and automated enterprise image processing pipelines.
+**Sn_apKut AI** is a full-stack, commercial-ready Software-as-a-Service (SaaS) application and developer API designed for instant, high-precision AI background removal. Built on **TanStack Start**, **React 19**, **Vite 8 (Rolldown engine)**, **Supabase PostgreSQL & Auth**, and **Razorpay Payments**, it offers:
 
-Whether used via the interactive browser studio with real-time before/after visualizers or integrated into third-party e-commerce workflows using secret API keys (`sk_live_...`), Sn_apKut delivers sub-second background extraction with atomic quota guarantees and cryptographic payment validation.
+1. **A Web Studio**: An interactive browser workspace featuring drag-and-drop uploads, clipboard image paste (`Ctrl+V`), real-time before/after comparison sliders, and one-click PNG downloads.
+2. **A Developer REST API (`/api/v1/remove-bg`)**: A secure server endpoint accepting raw binary or multipart uploads, authenticated via Developer Secret Keys (`sk_live_...`) or Supabase session tokens, with atomic server-side quota deduction.
+3. **Monetization & Billing**: A tiered credit and subscription engine powered by Razorpay with server-side HMAC-SHA256 signature verification, transaction history, and printable PDF invoices.
+4. **Comprehensive Observability**: A lightweight health check endpoint (`/api/health`) for uptime monitoring (UptimeRobot, BetterStack, Pingdom).
 
 ---
 
-## 🌟 Key Highlights & Features
+## ⚡ Core Features & Capabilities
 
-### 🎨 1. Studio-Grade Web Application
-- **Interactive Drag & Drop Upload Zone**: Seamless drag-and-drop, native file browser, sample asset picker, and direct clipboard image paste (`Ctrl + V`).
-- **Real-Time Comparison Slider**: Smooth, draggable interactive before-and-after split view allowing users to inspect fine edges, hair strands, and transparent cutouts.
-- **Multi-Format High-Res Exports**: Export clean transparent images as PNG, WEBP, or crisp white-background JPGs.
-- **Client-Side Validation & Security**: Pre-upload MIME type checking, size cap enforcement (up to 15 MB), and automated image caching.
+### 🎨 1. Interactive Web Studio
+- **Flexible Image Ingestion**: Drag and drop images, browse locally, pick from sample portraits/products, or paste directly from the clipboard (`Ctrl+V`).
+- **Interactive Before / After Split Slider**: Smooth, draggable comparison view to inspect fine edges, hair detail, and alpha transparency masks.
+- **Client-Side Guardrails**: Enforces file format constraints (JPEG, PNG, WEBP) and maximum file size (10 MB in the web UI) before uploading.
+- **Instant High-Quality PNG Export**: Downloads transparent cutouts directly to your device.
 
 ### 🔑 2. Developer REST API (`/api/v1/remove-bg`)
-- **Bearer Token Authentication**: Supports both **Developer Secret API Keys** (`sk_live_...`) for server-to-server pipelines and **User Session Tokens (JWT)** for client applications.
-- **Dual Ingestion Formats**: Accepts raw image binary (`image/png`, `image/jpeg`, `image/webp`) or standard `multipart/form-data` uploads (`file`, `image`, or `photo` form fields).
-- **Atomic Quota Enforcement**: Server-side pre-flight quota checks prevent race conditions and ensure non-Pro accounts are decremented precisely per successful cutout.
-- **Sub-Second Upstream Routing**: High-throughput proxy layer connecting securely to upstream ML inference engines or containerized n8n webhooks.
+- **Dual Authentication Modes**:
+  - **Developer Secret Key (`sk_live_...`)**: For automated backend scripts, bots, CLI tools, and e-commerce integrations.
+  - **User Session Token (JWT)**: For authenticated web application calls.
+- **Dual Ingestion Protocols**:
+  - **Raw Binary Streaming**: Stream raw bytes with `Content-Type: image/png`, `image/jpeg`, or `image/webp`.
+  - **Multipart Form-Data**: Upload standard form files using field names `image`, `file`, or `photo`.
+- **Atomic Server-Side Credit Deduction**: Deducts 1 credit per successful cutout for Free users; Pro subscribers receive unlimited processing.
+- **Upstream Forwarding**: Securely forwards image buffers to upstream ML inference workers or n8n webhooks (`BG_REMOVAL_WEBHOOK_URL`).
 
-### 💳 3. Monetization & Payment Infrastructure
-- **Tiered Quota Architecture**:
-  - **Free Tier**: 5 complimentary daily credits with automated rolling resets.
-  - **Pro Tier**: Unlimited background removals with priority inference.
-  - **Pay-As-You-Go Packs**: Instant 250 credit top-up packages.
-- **Server-Side HMAC-SHA256 Verification**: Payments handled securely via Razorpay Orders API; payments are cryptographically verified before any credit or plan mutation occurs.
-- **Invoices & Printable Receipts**: Complete transaction history with dynamic status badges, Razorpay payment reference IDs, and instant printable PDF invoice modals.
+### 📊 3. User Dashboard
+- **Overview Tab**: Real-time stats (Active Plan, Credits Remaining, Total Lifetime Processed, Monthly Processed) alongside a 7-day activity bar chart.
+- **Upload Tab**: Embedded full-featured background removal workspace.
+- **History Tab**: Gallery of previous cutouts with search, inline renaming, thumbnail previews, direct download, and cloud deletion synchronized with Supabase.
+- **Billing Tab**: Current subscription state, instant upgrade to Pro (₹799/month), 250 credit packs (₹299), transaction table, and printable invoice receipts.
+- **Developer API Tab**: Secret key viewer, one-click key rotation, endpoint documentation, and live cURL / Python code snippets with the user's active key.
+- **Account Settings Tab**: Profile display name updates, password reset, and secure, session-verified account deletion.
 
-### 🛡️ 4. Security & Compliance
-- **Strict Row Level Security (RLS)**: Public tables enforce user isolation policies (`auth.uid() = user_id`).
-- **Protected Plan Modifications**: Client-side tampering of credits or plan tiers is blocked at the database level.
-- **Cryptographic Account Termination**: IDOR-safe account deletion requiring authenticated JWT caller verification.
-- **Rate-Limited Authentication**: Sliding-window rate limiting on registration endpoints to prevent bot flooding.
-- **Regulatory Legal Suite**: Pre-configured, compliant Terms of Service, Privacy Policy, Refund Policy, and Shipping/Fulfillment Policy pages.
+### 💳 4. Razorpay Payments & Invoicing
+- **Genuine Pricing Plans**:
+  - **Free Tier**: **₹0** — 5 daily credits with rolling daily resets.
+  - **Pro Tier**: **₹799 / month** — Unlimited cutouts, full resolution up to 5000×5000, priority queue.
+  - **Credit Pack**: **₹299 / 250 credits** — Stackable, credits never expire, full API access.
+- **Cryptographic Security**: Razorpay orders created on the server via Orders API in INR paise; webhook and client completion verified via server-side HMAC-SHA256 (`crypto.timingSafeEqual`).
+- **Printable Invoices**: Every captured payment stores payment ID, order ID, amount, and timestamp for on-demand receipt rendering.
 
-### 🩺 5. High-Frequency Observability (`/api/health`)
-- Lightweight, zero-cold-start health endpoint designed for uptime services (**UptimeRobot**, **BetterStack**, **Pingdom**).
-- Responds with `status`, `timestamp`, and `version` over `GET` and `HEAD` without querying backend databases or triggering SSR overhead.
+### 🛡️ 5. Security & Isolation
+- **Row Level Security (RLS)**: PostgreSQL tables isolate user records (`auth.uid() = user_id`). Direct client updates to `plan` and `credits_remaining` are restricted.
+- **IDOR-Safe Account Deletion**: `deleteAccountServerFn` verifies caller's JWT token server-side before removing profile, history, payments, and auth credentials.
+- **Rate-Limited Registration**: Sliding-window rate limiter prevents brute-force account creation (max 5 attempts per 5 minutes per email).
+- **Compliance Suite**: Dedicated routes for Terms of Service (`/terms`), Privacy Policy (`/privacy-policy`), Refund Policy (`/refund-policy`), and Shipping Policy (`/shipping-policy`).
 
 ---
 
 ## 🏗️ System Architecture
 
-Sn_apKut AI utilizes a hybrid Edge SSR / Client-Side Architecture running on Nitro and Vite 8:
-
 ```mermaid
 graph TD
-    subgraph Clients["Clients & Consumers"]
-        Browser["Modern Web Studio (React 19 / TanStack)"]
-        ExternalAPI["Third-Party Apps & Scripts (cURL / Python)"]
-        UptimeBot["Uptime Monitors (BetterStack / UptimeRobot)"]
+    subgraph Clients["Clients & Applications"]
+        Browser["React 19 Web Studio (Browser)"]
+        DevClient["External Developer / Scripts (cURL, Python)"]
+        Monitor["Uptime Monitors (BetterStack, UptimeRobot)"]
     end
 
-    subgraph EdgeLayer["Nitro Edge Server Engine"]
-        ServerEntry["Server Handler (src/server.ts)"]
-        HealthRoute["GET/HEAD /api/health"]
-        ApiRemoveBg["POST /api/v1/remove-bg"]
-        SSRHandler["TanStack Start SSR & RPC Router"]
+    subgraph NitroEdge["Nitro Server Runtime (src/server.ts)"]
+        ServerFetch["fetch() Dispatcher"]
+        HealthHandler["GET/HEAD /api/health"]
+        ApiHandler["POST /api/v1/remove-bg (api-remove-bg.ts)"]
+        SSRHandler["TanStack Start SSR & Server Functions"]
     end
 
-    subgraph SecurityAuth["Auth & Security Gate"]
-        TokenParser["Bearer Token / API Key Parser"]
-        RateLimiter["Sliding Window Rate Limiter"]
-        HmacVerifier["HMAC-SHA256 Signature Validator"]
+    subgraph ServerFunctions["Server Functions (createServerFn)"]
+        AuthFn["server-auth.ts (Register, Delete Account, Delete Cutout)"]
+        PaymentFn["server-payment.ts (Create Order, Verify HMAC, Get Invoices)"]
+        ContactFn["server-contact.ts (Submit Inquiry)"]
     end
 
-    subgraph UpstreamServices["Backend & External Infrastructure"]
-        SupabaseAuth["Supabase Auth (JWT & Identity)"]
+    subgraph ExternalBackends["External Services & Storage"]
+        SupabaseAuth["Supabase GoTrue Auth"]
         SupabaseDB[("Supabase PostgreSQL (RLS Protected)")]
-        MLInference["Upstream ML Webhook / Inference (n8n / Container)"]
-        RazorpayGateway["Razorpay API (Orders & Payments)"]
+        MLWebhook["Upstream ML Inference / n8n Webhook"]
+        RazorpayAPI["Razorpay Payments & Orders API"]
     end
 
-    Browser -->|Interactive UI Requests| ServerEntry
-    ExternalAPI -->|HTTP REST Requests| ServerEntry
-    UptimeBot -->|Health Probes| HealthRoute
+    Browser -->|Studio UI & Sessions| ServerFetch
+    DevClient -->|REST API Requests| ServerFetch
+    Monitor -->|Health Checks| ServerFetch
 
-    ServerEntry -->|Path: /api/health| HealthRoute
-    ServerEntry -->|Path: /api/v1/remove-bg| ApiRemoveBg
-    ServerEntry -->|App & Server Functions| SSRHandler
+    ServerFetch -->|Path: /api/health| HealthHandler
+    ServerFetch -->|Path: /api/v1/remove-bg| ApiHandler
+    ServerFetch -->|Pages & RPC Calls| SSRHandler
 
-    ApiRemoveBg --> TokenParser
-    SSRHandler --> RateLimiter
-    SSRHandler --> HmacVerifier
+    SSRHandler --> AuthFn
+    SSRHandler --> PaymentFn
+    SSRHandler --> ContactFn
 
-    TokenParser -->|Validate Session or sk_live_...| SupabaseDB
-    ApiRemoveBg -->|Forward Image Payload| MLInference
-    ApiRemoveBg -->|Atomic Credit Deduction & Cutout History| SupabaseDB
-    HmacVerifier -->|Verify Payment Signatures| RazorpayGateway
-    SSRHandler -->|Fetch Profile & Receipts| SupabaseDB
-    SSRHandler -->|User Auth| SupabaseAuth
+    ApiHandler -->|1. Validate sk_live_ or JWT| SupabaseDB
+    ApiHandler -->|2. Forward Image Buffer| MLWebhook
+    ApiHandler -->|3. Deduct Quota & Record History| SupabaseDB
+
+    AuthFn -->|Admin Auth Operations| SupabaseAuth
+    AuthFn -->|Delete Cascade| SupabaseDB
+    PaymentFn -->|Create Orders & Fetch Details| RazorpayAPI
+    PaymentFn -->|Update Plans & Log Invoices| SupabaseDB
+    ContactFn -->|Insert Support Tickets| SupabaseDB
 ```
 
 ---
 
-## 🔄 End-to-End Execution Flows
+## 🔄 Execution Flows
 
-### 1. AI Background Removal Pipeline
+### 1. Background Removal Flow (`/api/v1/remove-bg`)
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as Client / External Dev
+    actor Client as User / External API Client
     participant Server as Nitro Server (/api/v1/remove-bg)
     participant DB as Supabase PostgreSQL
-    participant AI as Upstream ML Engine (n8n / AI)
+    participant ML as Upstream Inference (n8n Webhook)
 
-    User->>Server: POST /api/v1/remove-bg (Binary/Multipart + Bearer Token)
-    Server->>Server: Validate MIME format & size (< 15 MB)
-    
-    alt Secret Key (sk_live_...)
-        Server->>DB: Query profiles WHERE api_key = token
-    else Session JWT
-        Server->>DB: Verify JWT & fetch profile by user_id
+    Client->>Server: POST /api/v1/remove-bg (Binary or Multipart + Bearer Token)
+    Server->>Server: Check Content-Type & Size (<= 15 MB)
+
+    alt Token starts with "sk_live_"
+        Server->>DB: SELECT * FROM profiles WHERE api_key = token
+    else User Session JWT
+        Server->>DB: supabase.auth.getUser(token) -> SELECT * FROM profiles WHERE id = user.id
     end
 
-    DB-->>Server: Return user profile (plan, credits_remaining)
+    DB-->>Server: Return profile (plan, credits_remaining)
 
-    alt Credits <= 0 AND Plan is Free
-        Server-->>User: 402 Payment Required (Credit quota exhausted)
-    else Sufficient Credits or Pro Plan
-        Server->>AI: POST image binary with Content-Type
-        AI-->>Server: Return transparent cutout result URL
+    alt Free Plan AND credits_remaining <= 0
+        Server-->>Client: 402 Payment Required (Credits exhausted)
+    else Pro Plan OR credits_remaining > 0
+        Server->>ML: POST imageBuffer with original Content-Type
+        ML-->>Server: Upstream Response (Transparent PNG URL)
         
-        opt User is Free Plan
+        opt Free User
             Server->>DB: UPDATE profiles (credits_remaining - 1, total_processed + 1)
         end
+        opt Pro User
+            Server->>DB: UPDATE profiles (total_processed + 1)
+        end
         
-        Server->>DB: INSERT into cutout_history (user_id, image_name, result_url)
-        Server-->>User: 200 OK { success: true, url: "...", creditsRemaining: ... }
+        Server->>DB: INSERT INTO cutout_history (user_id, image_name, result_url)
+        Server-->>Client: 200 OK { success: true, url, creditsRemaining, plan }
     end
 ```
 
-### 2. Cryptographic Payment Verification Flow
+### 2. Payment Order & Cryptographic Verification Flow
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Customer as User / Subscriber
-    participant WebApp as Web Studio UI
+    actor User as User in Dashboard
+    participant Client as React Dashboard
     participant ServerFn as createRazorpayOrderServerFn
-    participant RZP as Razorpay Gateway
-    participant VerifyFn as verifyRazorpayPaymentServerFn
+    participant RZP as Razorpay API
+    participant VerifyFn as verifyAndApplyPaymentServerFn
     participant DB as Supabase Profiles & Payments
 
-    Customer->>WebApp: Select Plan (Pro @ ₹499 or 250 Credits @ ₹199)
-    WebApp->>ServerFn: Invoke with Authenticated User Token
-    ServerFn->>RZP: POST /v1/orders (amount, currency, receipt)
-    RZP-->>ServerFn: Order Created { id: "order_xyz" }
-    ServerFn-->>WebApp: Return { orderId, amount, keyId }
+    User->>Client: Click "Upgrade to Pro" (₹799) or "Buy 250 Credits" (₹299)
+    Client->>ServerFn: Call with user access_token & planName
+    ServerFn->>RZP: POST /v1/orders (amount: 79900 or 29900 paise, currency: INR)
+    RZP-->>ServerFn: Order Created { id: "order_xyz", amount: 79900 }
+    ServerFn-->>Client: Return { orderId, amount, keyId }
 
-    WebApp->>Customer: Launch Razorpay Checkout Modal
-    Customer->>RZP: Complete Payment (UPI / Card / NetBanking)
-    RZP-->>WebApp: Return { razorpay_payment_id, razorpay_order_id, razorpay_signature }
+    Client->>User: Launch Razorpay Modal (UPI, Card, NetBanking)
+    User->>RZP: Complete Payment
+    RZP-->>Client: Return { razorpay_payment_id, razorpay_order_id, razorpay_signature }
 
-    WebApp->>VerifyFn: POST verification payload
-    Note over VerifyFn: Compute expected_sig = HMAC_SHA256(order_id + "|" + payment_id, SECRET)
+    Client->>VerifyFn: Call with tokens and transaction details
+    Note over VerifyFn: expected = HMAC_SHA256(order_id + "|" + payment_id, SECRET)
     
     alt Signatures Match (crypto.timingSafeEqual)
-        VerifyFn->>DB: UPDATE profiles SET plan = 'pro' (or add credits)
+        opt Plan == "Pro"
+            VerifyFn->>DB: UPDATE profiles SET plan = 'pro'
+        opt Plan == "Credit packs"
+            VerifyFn->>DB: UPDATE profiles SET credits_remaining = credits_remaining + 250
+        end
         VerifyFn->>DB: INSERT INTO payment_records (status: 'captured', ...)
-        VerifyFn-->>WebApp: { success: true, plan: "pro" }
-        WebApp-->>Customer: Display Success Toast & Instant Invoice
-    else Signature Tampered
-        VerifyFn-->>WebApp: 400 Bad Request { error: "Signature verification failed" }
-        WebApp-->>Customer: Payment Verification Alert
+        VerifyFn-->>Client: { success: true, plan, creditsRemaining }
+        Client-->>User: Refresh Dashboard & Show Printable Receipt
+    else Signature Verification Fails
+        VerifyFn-->>Client: { success: false, error: "Payment verification failed" }
+        Client-->>User: Show Payment Failure Alert
+    end
+```
+
+### 3. User Registration Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Visitor on /auth
+    participant Client as Auth Form
+    participant ServerFn as registerUserServerFn
+    participant Supabase as Supabase Admin Auth
+
+    User->>Client: Submit Email & Password
+    Client->>ServerFn: Call with { email, password, fullName }
+    ServerFn->>ServerFn: Check Sliding-Window Rate Limit (Max 5/5min)
+
+    alt Rate Limit Exceeded
+        ServerFn-->>Client: 429 Too Many Attempts (retryAfter seconds)
+    else Rate Limit OK
+        ServerFn->>Supabase: admin.createUser({ email, password, email_confirm: true })
+        Supabase-->>ServerFn: User Created (ID: uuid)
+        ServerFn-->>Client: { success: true, userId }
+        Client->>Client: Sign in immediately via supabase.auth.signInWithPassword
+        Client-->>User: Redirect to /dashboard
     end
 ```
 
@@ -196,70 +239,70 @@ sequenceDiagram
 
 ## 🗄️ Database Schema & RLS
 
-The database is built on **PostgreSQL** inside **Supabase**. Row Level Security (RLS) is strictly enabled across all tables.
+All application data is hosted in **Supabase PostgreSQL (Mumbai `ap-south-1`)**.
 
 ```mermaid
 erDiagram
     PROFILES ||--o{ CUTOUT_HISTORY : owns
     PROFILES ||--o{ PAYMENT_RECORDS : generates
-    
+
     PROFILES {
         uuid id PK "Matches auth.users.id"
-        text email "User primary email"
+        text email "User email address"
         text full_name "Display name"
-        text avatar_url "Profile avatar URL"
-        text plan "'free' or 'pro'"
-        integer credits_remaining "Remaining cutout quota"
-        integer total_processed "Lifetime cutouts"
-        integer month_processed "Cutouts processed this billing cycle"
-        timestamp last_credit_reset_date "Daily reset tracking"
-        text api_key "Secret developer token (sk_live_...)"
-        timestamp created_at "Account creation timestamp"
-        timestamp updated_at "Last profile update"
+        text avatar_url "Avatar image URL"
+        text plan "Plan tier: 'free' or 'pro'"
+        integer credits_remaining "Cutouts remaining (default 5)"
+        integer total_processed "Lifetime cutouts count"
+        integer month_processed "Cutouts processed in current cycle"
+        timestamp last_credit_reset_date "Date of last daily reset"
+        text api_key "Developer key (sk_live_...)"
+        timestamp created_at "Creation timestamp"
+        timestamp updated_at "Update timestamp"
     }
 
     CUTOUT_HISTORY {
-        uuid id PK "Unique cutout record ID"
+        uuid id PK "Unique cutout ID"
         uuid user_id FK "References profiles.id"
-        text image_name "Original uploaded file name"
-        integer image_size "File size in bytes"
-        text result_url "Secure transparent image URL"
-        jsonb raw_response "Upstream engine metadata"
-        timestamp created_at "Timestamp of generation"
+        text image_name "Original file name"
+        integer image_size "Original file size in bytes"
+        text result_url "Transparent PNG result URL"
+        jsonb raw_response "Raw upstream metadata"
+        timestamp created_at "Creation timestamp"
     }
 
     PAYMENT_RECORDS {
-        uuid id PK "Unique transaction identifier"
+        uuid id PK "Unique payment record ID"
         uuid user_id FK "References profiles.id"
-        text razorpay_payment_id "Razorpay transaction reference"
-        text razorpay_order_id "Associated Razorpay order ID"
-        text razorpay_signature "Cryptographic transaction signature"
+        text razorpay_payment_id "Razorpay Payment ID (pay_...)"
+        text razorpay_order_id "Razorpay Order ID (order_...)"
+        text razorpay_signature "Cryptographic signature"
         text plan_name "'Pro' or 'Credit packs'"
-        numeric amount_in_rupees "Total transaction amount"
-        text currency "Currency code (e.g. INR)"
-        text status "Transaction state ('captured')"
-        timestamp created_at "Payment capture timestamp"
+        numeric amount_in_rupees "799.00 or 299.00"
+        text currency "Currency code ('INR')"
+        text status "'captured'"
+        timestamp created_at "Payment timestamp"
     }
 
     CONTACT_INQUIRIES {
         uuid id PK "Unique inquiry ID"
-        text ticket_id "Human-readable support ID (TKT-YYYYMMDD-XXXXX)"
-        text name "Contact name"
-        text email "Contact email"
-        text phone "Optional phone number"
-        text subject "Topic / Category"
-        text message "Inquiry message content"
-        text status "Status ('open', 'resolved')"
+        text ticket_id "Ticket ID (TKT-YYMMDD-XXXXX)"
+        text name "Sender full name"
+        text email "Sender email"
+        text phone "Sender phone (optional)"
+        text subject "Topic category"
+        text message "Inquiry message body"
+        text status "'open' or 'resolved'"
         timestamp created_at "Submission timestamp"
     }
 ```
 
-### Complete Supabase SQL Setup
+### Complete SQL Migration Script
 
-Execute the following script in the Supabase SQL Editor to provision the complete database schema, triggers, and Row Level Security policies:
+Run this SQL in your Supabase SQL Editor to provision tables, triggers, and RLS policies:
 
 ```sql
--- 1. Create Profiles Table
+-- 1. Profiles Table
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT NOT NULL,
@@ -275,7 +318,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 2. Create Cutout History Table
+-- 2. Cutout History Table
 CREATE TABLE IF NOT EXISTS public.cutout_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -286,7 +329,7 @@ CREATE TABLE IF NOT EXISTS public.cutout_history (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 3. Create Payment Records Table
+-- 3. Payment Records Table
 CREATE TABLE IF NOT EXISTS public.payment_records (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -300,7 +343,7 @@ CREATE TABLE IF NOT EXISTS public.payment_records (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 4. Create Contact Inquiries Table
+-- 4. Contact Inquiries Table
 CREATE TABLE IF NOT EXISTS public.contact_inquiries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     ticket_id TEXT NOT NULL UNIQUE,
@@ -320,31 +363,32 @@ ALTER TABLE public.payment_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contact_inquiries ENABLE ROW LEVEL SECURITY;
 
 -- 6. Row Level Security Policies
--- Profiles: Users can read their own profile; updates to plan/credits are restricted to service role
+-- Profiles: authenticated users can read their own row
 CREATE POLICY "Users can read own profile" ON public.profiles
     FOR SELECT TO authenticated USING (auth.uid() = id);
 
-CREATE POLICY "Users can update personal details on own profile" ON public.profiles
-    FOR UPDATE TO authenticated 
-    USING (auth.uid() = id) 
+-- Profiles: users can update safe personal fields (name, avatar); credits/plan are server-managed
+CREATE POLICY "Users can update own details" ON public.profiles
+    FOR UPDATE TO authenticated
+    USING (auth.uid() = id)
     WITH CHECK (auth.uid() = id);
 
--- Cutout History: Users can view and delete their own cutout records
+-- Cutouts: users read and delete their own records
 CREATE POLICY "Users can read own cutouts" ON public.cutout_history
     FOR SELECT TO authenticated USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can delete own cutouts" ON public.cutout_history
     FOR DELETE TO authenticated USING (auth.uid() = user_id);
 
--- Payment Records: Users can view their own transaction history
-CREATE POLICY "Users can view own payments" ON public.payment_records
+-- Payments: users view their own transaction history
+CREATE POLICY "Users can read own payments" ON public.payment_records
     FOR SELECT TO authenticated USING (auth.uid() = user_id);
 
--- Contact Inquiries: Anyone can insert inquiries; only service role can read
-CREATE POLICY "Public insert inquiries" ON public.contact_inquiries
+-- Contact: public can insert inquiries
+CREATE POLICY "Anyone can submit contact inquiry" ON public.contact_inquiries
     FOR INSERT TO public WITH CHECK (true);
 
--- 7. Automated Daily Free Credit Reset RPC
+-- 7. Daily Free Credit Reset RPC Function
 CREATE OR REPLACE FUNCTION public.reset_daily_credits_if_needed(target_user_id UUID)
 RETURNS VOID AS $$
 BEGIN
@@ -363,8 +407,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 ## 📡 Developer API Reference
 
-### 1. Health Status Probe
-Check system operational status and API version without authentication.
+### 1. Health Status (`GET /api/health` & `HEAD /api/health`)
+A lightweight, zero-database health probe designed for uptime monitoring tools.
 
 ```http
 GET /api/health
@@ -374,15 +418,15 @@ GET /api/health
 ```json
 {
   "status": "ok",
-  "timestamp": "2026-11-13T05:30:00.000Z",
+  "timestamp": "2026-11-13T17:15:00.000Z",
   "version": "1.0.0"
 }
 ```
 
 ---
 
-### 2. Remove Image Background
-Send an image payload and receive a transparent PNG result URL.
+### 2. Remove Background (`POST /api/v1/remove-bg`)
+Removes the background from an image and returns a transparent PNG result URL.
 
 ```http
 POST /api/v1/remove-bg
@@ -391,7 +435,7 @@ POST /api/v1/remove-bg
 #### Headers
 | Header | Type | Description |
 |---|---|---|
-| `Authorization` | `string` | **Required**. `Bearer sk_live_...` (Developer Key) or Supabase JWT. |
+| `Authorization` | `string` | **Required**. `Bearer sk_live_...` or Supabase Session JWT. |
 | `Content-Type` | `string` | **Required**. `image/png`, `image/jpeg`, `image/webp`, or `multipart/form-data`. |
 
 #### Response (`200 OK`)
@@ -401,62 +445,63 @@ POST /api/v1/remove-bg
   "url": "https://storage.provider.com/cutouts/transparent_output.png",
   "creditsRemaining": 4,
   "plan": "free",
-  "imageName": "sample-portrait.png"
+  "imageName": "cutout.png"
 }
 ```
+*(For Pro subscribers, `"creditsRemaining"` returns `"unlimited"`).*
 
 #### Status Codes
-| Status | Code | Meaning |
+| Code | Reason | Cause |
 |---|---|---|
-| `200` | `OK` | Background removed successfully. Result URL included in payload. |
-| `400` | `Bad Request` | Empty image buffer, invalid multipart form data, or unsupported format. |
-| `401` | `Unauthorized` | Missing or invalid Bearer token / secret API key. |
-| `402` | `Payment Required` | Quota exhausted (0 credits remaining). Requires upgrade or credit pack purchase. |
-| `413` | `Payload Too Large` | Image file size exceeds the 15 MB limit. |
-| `502` | `Bad Gateway` | Upstream AI inference engine unreachable or failed to process image. |
+| `200` | `OK` | Background removed successfully. |
+| `400` | `Bad Request` | Empty image payload or missing file in multipart form data. |
+| `401` | `Unauthorized` | Missing or invalid Bearer token / `sk_live_...` key. |
+| `402` | `Payment Required` | Free credit balance exhausted (0 remaining). |
+| `413` | `Payload Too Large` | Image payload exceeds the 15 MB server limit. |
+| `502` | `Bad Gateway` | Upstream ML service unreachable or returned invalid data. |
 
 ---
 
-### 💻 Code Snippets
+### Code Examples
 
 #### cURL (Binary Streaming)
 ```bash
 curl -X POST "https://sn_ap_kut_ai.vercel.app/api/v1/remove-bg" \
-  -H "Authorization: Bearer sk_live_your_secret_key_here" \
+  -H "Authorization: Bearer sk_live_your_api_key_here" \
   -H "Content-Type: image/png" \
   --data-binary "@portrait.png"
 ```
 
-#### cURL (Multipart Form Data)
+#### cURL (Multipart Form Upload)
 ```bash
 curl -X POST "https://sn_ap_kut_ai.vercel.app/api/v1/remove-bg" \
-  -H "Authorization: Bearer sk_live_your_secret_key_here" \
+  -H "Authorization: Bearer sk_live_your_api_key_here" \
   -F "image=@portrait.jpg"
 ```
 
-#### Python
+#### Python (`requests`)
 ```python
 import requests
 
-API_KEY = "sk_live_your_secret_key_here"
-ENDPOINT = "https://sn_ap_kut_ai.vercel.app/api/v1/remove-bg"
+API_KEY = "sk_live_your_api_key_here"
+URL = "https://sn_ap_kut_ai.vercel.app/api/v1/remove-bg"
 
-with open("portrait.png", "rb") as image_file:
+with open("photo.png", "rb") as f:
     response = requests.post(
-        ENDPOINT,
+        URL,
         headers={"Authorization": f"Bearer {API_KEY}"},
-        files={"image": image_file}
+        files={"image": f}
     )
 
-data = response.json()
 if response.status_code == 200:
-    print(f"Cutout generated: {data['url']}")
-    print(f"Credits Remaining: {data['creditsRemaining']}")
+    data = response.json()
+    print("Transparent Cutout URL:", data["url"])
+    print("Credits Remaining:", data["creditsRemaining"])
 else:
-    print(f"Error [{response.status_code}]: {data.get('error')}")
+    print(f"Error [{response.status_code}]:", response.json())
 ```
 
-#### Node.js / TypeScript
+#### Node.js / TypeScript (`fetch`)
 ```typescript
 import fs from "node:fs";
 
@@ -472,13 +517,13 @@ async function removeBackground(imagePath: string, apiKey: string) {
     body: fileBuffer,
   });
 
-  const result = await response.json();
+  const data = await response.json();
   if (!response.ok) {
-    throw new Error(result.error || "Background removal failed");
+    throw new Error(data.error || "Processing failed");
   }
 
-  console.log("Cutout URL:", result.url);
-  return result;
+  console.log("Cutout URL:", data.url);
+  return data;
 }
 ```
 
@@ -486,33 +531,39 @@ async function removeBackground(imagePath: string, apiKey: string) {
 
 ## 🛠️ Technology Stack
 
-| Layer | Technologies | Purpose |
-|---|---|---|
-| **Core Framework** | [TanStack Start](https://tanstack.com/start) + [React 19](https://react.dev/) | Full-stack SSR, file-based routing, server functions (`createServerFn`) |
-| **Bundler & Build Tool** | [Vite 8](https://vitejs.dev/) + [Rolldown](https://rolldown.rs/) | Sub-second HMR, optimized production code-splitting |
-| **Styling & Components** | [Tailwind CSS 4](https://tailwindcss.com/) + [Radix UI](https://www.radix-ui.com/) + [Lucide Icons](https://lucide.dev/) | Modern, accessible, dark/light responsive UI system |
-| **Backend & Edge Runtime** | [Nitro](https://nitro.unjs.io/) (`cloudflare-module`) | High-concurrency edge computing & custom server route handlers |
-| **Database & Identity** | [Supabase](https://supabase.com/) (PostgreSQL 15 + GoTrue Auth) | RLS policies, daily quota triggers, and user management |
-| **Payment Gateway** | [Razorpay](https://razorpay.com/) (Orders API + Checkout JS) | Indian & International credit card, net banking, and UPI checkout |
-| **Notifications & Toasts** | [Sonner](https://sonner.emilkowal.ski/) | Sleek, non-intrusive floating feedback toasts |
+| Layer | Library / Service | Version | Description |
+|---|---|---|---|
+| **Frontend Framework** | [React](https://react.dev/) | `^19.2.0` | UI rendering & component architecture |
+| **Full-Stack Router** | [TanStack Start](https://tanstack.com/start) | `1.168.60` | Full-stack SSR & Type-Safe Server Functions (`createServerFn`) |
+| **Client Router** | [TanStack Router](https://tanstack.com/router) | `1.170.41` | Type-safe file-based client routing |
+| **Client State / Cache** | [TanStack Query](https://tanstack.com/query) | `^5.101.1` | Async server state synchronization |
+| **Bundler & Build Tool** | [Vite](https://vitejs.dev/) | `^8.1.5` / `8.3.6` | Next-generation bundler with Rolldown engine |
+| **Server / Edge Engine** | [Nitro](https://nitro.unjs.io/) | `3.0.260603-beta` | Cloudflare Workers / Node.js preset server engine |
+| **Styling** | [Tailwind CSS](https://tailwindcss.com/) | `^4.2.1` | Modern utility-first CSS |
+| **UI Components** | [Radix UI](https://www.radix-ui.com/) | Latest | Accessible unstyled primitives (Dialog, Tabs, Slider, etc.) |
+| **Icons** | [Lucide React](https://lucide.dev/) | `^0.575.0` | Crisp UI icon set |
+| **Database & Auth** | [Supabase](https://supabase.com/) | `^2.119.0` | PostgreSQL 15, Row Level Security, GoTrue Auth |
+| **Payments** | [Razorpay](https://razorpay.com/) | REST API + Checkout | Orders API, checkout modal, HMAC-SHA256 verification |
+| **Toasts** | [Sonner](https://sonner.emilkowal.ski/) | `^2.0.7` | Toast notification manager |
 
 ---
 
-## ⚡ Production Bundle Optimization
+## ⚡ Production Bundle & Code Splitting
 
-Sn_apKut AI leverages Vite 8's native **Rolldown** code-splitting engine to partition bulky vendor dependencies into independent, cached chunks. This ensures initial page loads remain lightweight and eliminates all chunk size warnings:
+Configured in [vite.config.ts](file:///c:/Users/DELL/OneDrive/Desktop/Sn_apKut-AI/vite.config.ts) using Rolldown code-splitting (`strictExecutionOrder: true`), producing **zero chunks over 500 kB**:
 
 | Chunk Name | Size | Gzip Size | Modules Included |
 |---|---|---|---|
-| `index-*.js` | **0.08 kB** | 0.09 kB | Thin application bootstrapper |
-| `router-*.js` | **11.95 kB** | 4.38 kB | TanStack Router tree & route declarations |
-| `auth-context-*.js` | **15.26 kB** | 4.57 kB | Session context & client auth hooks |
-| `vendor-common-*.js` | **46.96 kB** | 15.80 kB | Shared third-party utilities |
-| `vendor-radix-*.js` | **49.93 kB** | 16.10 kB | Radix UI primitives (dialogs, tabs, dropdowns) |
-| `dashboard-*.js` | **67.53 kB** | 14.19 kB | User dashboard, gallery, and analytics views |
+| `index-*.js` | **0.08 kB** | 0.09 kB | Thin client bootstrapper |
+| `rolldown-runtime-*.js` | **0.69 kB** | 0.41 kB | Rolldown module loader runtime |
+| `router-*.js` | **11.95 kB** | 4.38 kB | Route declarations & tree |
+| `auth-context-*.js` | **15.26 kB** | 4.57 kB | Supabase session state & auth hooks |
+| `vendor-common-*.js` | **46.96 kB** | 15.80 kB | Shared third-party npm utilities |
+| `vendor-radix-*.js` | **49.93 kB** | 16.10 kB | Radix UI primitives |
+| `dashboard-*.js` | **67.53 kB** | 14.19 kB | User dashboard, tabs, and analytics |
 | `vendor-ui-*.js` | **78.81 kB** | 24.41 kB | Lucide icons, Sonner, Zod, and Tailwind merge |
 | `vendor-tanstack-*.js` | **126.33 kB** | 42.57 kB | `@tanstack/react-router`, `@tanstack/react-query` |
-| `vendor-supabase-*.js` | **213.09 kB** | 55.53 kB | `@supabase/supabase-js`, PostgREST client |
+| `vendor-supabase-*.js` | **213.09 kB** | 55.53 kB | `@supabase/supabase-js`, PostgREST |
 | `vendor-react-*.js` | **218.91 kB** | 68.33 kB | `react`, `react-dom`, `scheduler` |
 
 ---
@@ -521,8 +572,9 @@ Sn_apKut AI leverages Vite 8's native **Rolldown** code-splitting engine to part
 
 ```text
 Sn_apKut-AI/
-├── public/                       # Static public assets, logos, and favicons
+├── public/                       # Static public assets (icons, logo, robots.txt)
 │   ├── favicon.png
+│   ├── snapkut-icon.png
 │   ├── snapkut-logo.png
 │   └── robots.txt
 ├── src/
@@ -530,35 +582,42 @@ Sn_apKut-AI/
 │   │   ├── site/                 # Application feature components
 │   │   │   ├── Header.tsx        # Top navigation & user session badge
 │   │   │   ├── Footer.tsx        # Global footer with policies & branding
-│   │   │   ├── UploadZone.tsx    # Drag-drop zone & before/after slider
+│   │   │   ├── UploadZone.tsx    # Drag-drop zone, before/after slider & download
 │   │   │   └── HistoryGallery.tsx# Recent cutouts gallery modal
-│   │   └── ui/                   # Reusable ShadCN / Radix UI atoms
-│   ├── lib/                      # Core business logic & server functions
-│   │   ├── supabase.ts           # Client-side Supabase client & DB queries
+│   │   └── ui/                   # Reusable Radix UI / ShadCN atoms
+│   ├── contexts/
+│   │   └── auth-context.tsx      # AuthProvider: session management & OAuth
+│   ├── hooks/
+│   │   ├── use-cutout-history.ts # Hook for managing cutouts cache
+│   │   ├── use-user-credits.ts   # Hook for reactive credit balance
+│   │   └── use-mobile.tsx        # Viewport breakpoint detection hook
+│   ├── lib/
+│   │   ├── supabase.ts           # Supabase client, queries & helper functions
 │   │   ├── server-auth.ts        # Server functions: register & delete account
 │   │   ├── server-payment.ts     # Server functions: Razorpay orders & verification
-│   │   ├── server-contact.ts     # Server functions: Contact ticket storage
-│   │   ├── razorpay.ts           # Razorpay modal launcher & payment helpers
-│   │   ├── credits-storage.ts    # Fallback storage for guest credits
-│   │   └── history-storage.ts    # Local cache for recent cutouts
-│   ├── routes/                   # TanStack Start file-based routes
-│   │   ├── __root.tsx            # Global layout wrapper & navigation
+│   │   ├── server-contact.ts     # Server functions: Support ticket storage
+│   │   ├── razorpay.ts           # Client-side Razorpay modal launcher
+│   │   ├── credits-storage.ts    # Guest credits fallback storage
+│   │   ├── history-storage.ts    # Local cutout history storage
+│   │   └── utils.ts              # Tailwind class merge helper (cn)
+│   ├── routes/                   # TanStack Start file-based route definitions
+│   │   ├── __root.tsx            # Global layout wrapper
 │   │   ├── index.tsx             # Landing page & primary Web Studio
-│   │   ├── auth.tsx              # Sign In, Sign Up, & Password Recovery
-│   │   ├── dashboard.tsx         # User studio: credits, gallery, API keys, invoices
+│   │   ├── auth.tsx              # Sign In, Sign Up, OAuth & Password Recovery
+│   │   ├── dashboard.tsx         # Dashboard: overview, upload, history, billing, API, settings
 │   │   ├── contact.tsx           # Contact form & ticket submission
 │   │   ├── terms.tsx             # Terms of Service
 │   │   ├── privacy-policy.tsx    # Privacy Policy
 │   │   ├── refund-policy.tsx     # Cancellation & Refund Policy
 │   │   └── shipping-policy.tsx   # Shipping & Delivery Policy
-│   ├── server/                   # Standalone server API route implementations
+│   ├── server/
 │   │   └── api-remove-bg.ts      # REST API route handler for /api/v1/remove-bg
 │   ├── router.tsx                # TanStack Router configuration
 │   └── server.ts                 # Nitro server entry: /api/health, /api/v1/remove-bg, SSR
-├── .env.example                  # Environment configuration template
-├── package.json                  # Dependencies & execution scripts
+├── .env.example                  # Environment variable template
+├── package.json                  # Dependencies & scripts
 ├── tsconfig.json                 # TypeScript compiler configuration
-└── vite.config.ts                # Vite 8 + Rolldown configuration with code splitting
+└── vite.config.ts                # Vite 8 + Rolldown code-splitting configuration
 ```
 
 ---
@@ -584,7 +643,7 @@ npm install
 ---
 
 ### Step 2: Configure Environment Variables
-Create a `.env` file in the root directory based on `.env.example`:
+Create a `.env` file in the project root:
 
 ```bash
 cp .env.example .env
@@ -593,43 +652,47 @@ cp .env.example .env
 Populate the required configuration keys:
 ```ini
 # Supabase Configuration
-SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_ANON_KEY=your_supabase_anon_jwt
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_jwt_token
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_secret
 
-# Razorpay Configuration
+# Supabase PostgreSQL Direct / Pooler Connections (Optional for migrations)
+DATABASE_URL=postgresql://postgres.xxx:password@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+DIRECT_URL=postgresql://postgres.xxx:password@aws-0-ap-south-1.pooler.supabase.com:5432/postgres
+
+# Razorpay API Credentials
 VITE_RAZORPAY_KEY_ID=rzp_test_your_key_id
 RAZORPAY_KEY_ID=rzp_test_your_key_id
 RAZORPAY_KEY_SECRET=your_razorpay_secret_key
 
-# Business Details (Required for Payment Compliance)
+# Business & Support Info (Used for customer receipts & compliance)
 VITE_COMPANY_NAME="Sn_apKut AI"
 VITE_SUPPORT_EMAIL="support@snapkut.ai"
 VITE_SUPPORT_PHONE="+91 98765 43210"
 VITE_BUSINESS_ADDRESS="Plot No. 42, Hitech City Main Road, Madhapur, Hyderabad, Telangana 500081, India"
 
-# Optional: Upstream ML Webhook URL (Defaults to local inference)
+# Upstream ML / Background Removal Webhook (Optional; defaults to local instance)
 BG_REMOVAL_WEBHOOK_URL=http://localhost:5678/webhook/remove%20bkgrnd
 ```
 
 ---
 
 ### Step 3: Run Database Migrations
-Copy the SQL commands from the [Database Schema section](#complete-supabase-sql-setup) and execute them inside your Supabase project's **SQL Editor**.
+Copy the SQL commands from the [Database Schema section](#complete-sql-migration-script) and execute them in your Supabase project's **SQL Editor**.
 
 ---
 
-### Step 4: Start Development Server
+### Step 4: Run Locally in Development Mode
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) (or the port indicated in your console) in your browser.
+Open [http://localhost:3000](http://localhost:3000) (or the port displayed in your terminal) in your browser.
 
 ---
 
 ### Step 5: Build for Production
-To generate a production-ready build:
+To build the application for production:
 ```bash
 npm run build
 ```
@@ -657,10 +720,10 @@ The project is pre-configured with Nitro's `cloudflare-module` preset.
 3. Set your production environment variables in the Cloudflare Dashboard under **Workers & Pages > Settings > Variables**.
 
 ### Deploying to Vercel
-1. Link your GitHub repository in the Vercel dashboard.
-2. Ensure the Framework Preset is set to **Other** (or TanStack Start).
-3. Add all production environment variables from `.env` in the Vercel Project Settings.
-4. Set Build Command to `npm run build` and Output Directory to `.output/public`.
+1. Import your GitHub repository into the Vercel dashboard.
+2. Select the **Other** framework preset (or TanStack Start).
+3. Set Build Command to `npm run build` and Output Directory to `.output/public`.
+4. Add all environment variables from `.env` in the Vercel Project Settings.
 
 ---
 
@@ -677,7 +740,7 @@ Continue developing this project in the [Lovable editor](https://lovable.dev/pro
 
 ## 📄 License
 
-This project is licensed under the **MIT License**. Feel free to use, modify, and distribute for commercial and private projects.
+This project is licensed under the **MIT License**.
 
 ---
 

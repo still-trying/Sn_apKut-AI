@@ -726,16 +726,7 @@ The project is pre-configured with Nitro's `cloudflare-module` preset.
 
 ---
 
-## 🤝 Build with Lovable
 
-This project was bootstrapped and styled with [Lovable](https://lovable.dev).
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/f300f387-dc5e-4da7-bc22-c7fbcc43d988):
-- **Ship faster**: Describe what you want to build and Lovable handles the code.
-- **Stay in sync**: Every change made in Lovable is committed straight to this repository.
-- **Full ownership**: The code is 100% yours. Push to `main` on GitHub and changes sync back seamlessly.
-
----
 
 ## 📄 License
 
